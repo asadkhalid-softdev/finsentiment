@@ -35,6 +35,7 @@ ENV/
 
 # Project specific
 Stocks.xlsx
+latest_stock_list_*.xlsx
 *.log
 *.csv
 *.json
