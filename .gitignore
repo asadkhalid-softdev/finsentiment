@@ -34,7 +34,7 @@ ENV/
 .DS_Store
 
 # Project specific
-Stocks.xlsx
+stocks.xlsx
 latest_stock_list_*.xlsx
 *.log
 *.csv
@@ -74,3 +74,5 @@ nosetests.xml
 coverage.xml
 *.cover
 .hypothesis/ 
+stock_names.xlsx
+~*.xlsx

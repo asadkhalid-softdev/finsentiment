@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import time
 from tqdm import tqdm
 
-total_investment = 300
+total_investment = 2000
 n_stocks = 20
 
 def calculate_technical_indicators(hist_data):
@@ -115,15 +115,24 @@ def calculate_sentiment_score(technical_data, stock_info):
 
 def calculate_investment_allocation(df, total_investment=300, n_stocks=20):
     """Calculate investment allocation based on sentiment scores and profit margins for top 20 stocks."""
-    # Sort by sentiment score and profit margin (descending order for both)
     # Convert profit margin to numeric type and multiply by 100 for better readability
+
+    # Drop rows with any missing values in key columns
+    key_columns = [
+        'Sentiment_Score', 'Profit_Margin', 'Current_Price',
+        '1Y_Momentum', '3Y_Momentum', 'Volume_Trend',
+        'PE_Ratio', 'Revenue_Growth', 'Debt_To_Equity'
+    ]
+    df = df.dropna(subset=key_columns)
+
+    df = df.sort_values(['Sentiment_Score', 'Profit_Margin'], 
+                          ascending=[False, False], 
+                          na_position='last',
+                          kind='stable')
     df['Profit_Margin'] = pd.to_numeric(df['Profit_Margin'], errors='coerce') * 100
     
     # Sort with stable sorting to maintain relative positions of equal values
-    top_df = df.sort_values(['Sentiment_Score', 'Profit_Margin'], 
-                          ascending=[False, False], 
-                          na_position='last',
-                          kind='stable').head(n_stocks).copy()
+    top_df = df.head(n_stocks).copy()
     
     print("\nDebug - Selected stocks before allocation:")
     print(top_df[['Company Name', 'Ticker', 'Sentiment_Score', 'Profit_Margin']].to_string())
@@ -165,8 +174,10 @@ def calculate_investment_allocation(df, total_investment=300, n_stocks=20):
 def update_stock_analysis():
     try:
         # Read the Stocks.xlsx file, specifically the 'Stocks' sheet
-        df = pd.read_excel('Stocks.xlsx', sheet_name='Stocks')
-        print(f"Loaded {len(df)} stocks from Stocks.xlsx")
+        df = pd.read_excel('stocks.xlsx', sheet_name='Stocks')
+        # Filter out rows where inGermany is 'No' or Boycott is 'Yes'
+        df = df[(df['inGermany'] != 'No') & (df['Boycott'] != 'Yes') & (df['Ignore'] != 'Yes')]
+        print(f"Loaded {len(df)} stocks from Stocks.xlsx (excluding non-German and boycotted stocks)")
         
         # Initialize results
         results = []
@@ -204,7 +215,6 @@ def update_stock_analysis():
                 result = {
                     'Company Name': name,
                     'Ticker': symbol,
-                    'ISIN': row['ISIN'],
                     'Domain/Topic': row['Domain/Topic'],
                     'Sentiment_Score': sentiment_score,
                     'Current_Price': technical_data['current_price'],
@@ -228,7 +238,7 @@ def update_stock_analysis():
                 results.append(result)
                 
                 # Sleep to avoid hitting rate limits
-                time.sleep(1)
+                time.sleep(0.5)
                 
             except Exception as e:
                 print(f"\nError updating {name}: {str(e)}")
