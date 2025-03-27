@@ -177,7 +177,7 @@ def update_stock_analysis():
         df = pd.read_excel('stocks.xlsx', sheet_name='Stocks')
         # Filter out rows where inGermany is 'No' or Boycott is 'Yes'
         df = df[(df['inGermany'] != 'No') & (df['Boycott'] != 'Yes') & (df['Ignore'] != 'Yes')]
-        print(f"Loaded {len(df)} stocks from Stocks.xlsx (excluding non-German and boycotted stocks)")
+        print(f"Loaded {len(df)} stocks from stocks.xlsx (excluding non-German and boycotted stocks)")
         
         # Initialize results
         results = []
@@ -265,13 +265,13 @@ def update_stock_analysis():
         
         # Read existing Excel file
         try:
-            with pd.ExcelWriter('Stocks.xlsx', mode='a', if_sheet_exists='replace') as writer:
+            with pd.ExcelWriter('stocks.xlsx', mode='a', if_sheet_exists='replace') as writer:
                 results_df.to_excel(writer, sheet_name=current_date, index=False)
         except FileNotFoundError:
             # If file doesn't exist, create it
-            results_df.to_excel('Stocks.xlsx', sheet_name=current_date, index=False)
+            results_df.to_excel('stocks.xlsx', sheet_name=current_date, index=False)
         
-        print(f"\nUpdate complete! Results saved to Stocks.xlsx in sheet '{current_date}'")
+        print(f"\nUpdate complete! Results saved to stocks.xlsx in sheet '{current_date}'")
         
         if not results_df.empty:
             print("\nTop 5 stocks by sentiment score and profit margin:")
