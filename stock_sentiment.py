@@ -173,7 +173,7 @@ def calculate_investment_allocation(df, total_investment=300, n_stocks=20):
 
 def update_stock_analysis():
     try:
-        # Read the Stocks.xlsx file, specifically the 'Stocks' sheet
+        # Read the stocks.xlsx file, specifically the 'Stocks' sheet
         df = pd.read_excel('stocks.xlsx', sheet_name='Stocks')
         # Filter out rows where inGermany is 'No' or Boycott is 'Yes'
         df = df[(df['inGermany'] != 'No') & (df['Boycott'] != 'Yes') & (df['Ignore'] != 'Yes')]
