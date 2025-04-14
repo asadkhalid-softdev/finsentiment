@@ -3,3 +3,6 @@ yfinance
 numpy
 tqdm
 openpyxl
+pandas
+openpyxl
+yahoo_fin

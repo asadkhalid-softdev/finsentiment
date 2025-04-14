@@ -1,14 +1,13 @@
-name: Daily Stock Sentiment Analysis
+name: Daily Stock Pipeline
 
 on:
-  workflow_dispatch:  # manual trigger
+  workflow_dispatch:
   schedule:
-    - cron: '30 6 * * *'  # runs daily at 06:30 UTC
+    - cron: '20 6 * * *'  # starts daily at 06:20 UTC
 
 jobs:
-  run-script:
+  update-stock-list:
     runs-on: ubuntu-latest
-
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
@@ -23,11 +22,42 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    - name: Run stock sentiment analysis
-      run: python stock_sentiment.py
+    - name: Run update_stocks.py
+      run: python update_stocks.py
 
-    - name: Upload result Excel
+    - name: Upload intermediate Stocks.xlsx
       uses: actions/upload-artifact@v4
       with:
-        name: Stocks-Excel
-        path: stocks.xlsx
+        name: Intermediate-Stocks
+        path: Stocks.xlsx
+
+  sentiment-analysis:
+    needs: update-stock-list
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Download updated Stocks.xlsx
+      uses: actions/download-artifact@v4
+      with:
+        name: Intermediate-Stocks
+
+    - name: Run stock_sentiment.py
+      run: python stock_sentiment.py
+
+    - name: Upload final output
+      uses: actions/upload-artifact@v4
+      with:
+        name: Final-Stocks
+        path: Stocks.xlsx
