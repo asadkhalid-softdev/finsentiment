@@ -6,3 +6,4 @@ openpyxl
 pandas
 openpyxl
 yahoo_fin
+requests_html

@@ -34,7 +34,6 @@ ENV/
 .DS_Store
 
 # Project specific
-stocks.xlsx
 latest_stock_list_*.xlsx
 *.log
 *.csv
