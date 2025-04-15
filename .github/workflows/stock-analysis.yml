@@ -3,11 +3,12 @@ name: Daily Stock Pipeline
 on:
   workflow_dispatch:
   schedule:
-    - cron: '20 6 * * *'  # starts daily at 06:20 UTC
+    - cron: '20 6 * * *'  # every day at 06:20 UTC (08:20 Germany in winter, 07:20 in summer)
 
 jobs:
   update-stock-list:
     runs-on: ubuntu-latest
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
@@ -22,18 +23,27 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
+    - name: Patch yahoo_fin bug
+      run: |
+        sed -i 's/del df\["52 Week Range"\]/if "52 Week Range" in df.columns: del df["52 Week Range"]/' \
+          $(python -c "import yahoo_fin.stock_info; print(yahoo_fin.stock_info.__file__)")
+
     - name: Run update_stocks.py
       run: python update_stocks.py
+
+    - name: List files after update
+      run: ls -lah
 
     - name: Upload intermediate Stocks.xlsx
       uses: actions/upload-artifact@v4
       with:
         name: Intermediate-Stocks
-        path: stocks.xlsx
+        path: Stocks.xlsx
 
   sentiment-analysis:
     needs: update-stock-list
     runs-on: ubuntu-latest
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
@@ -48,7 +58,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    - name: Download updated Stocks.xlsx
+    - name: Download Stocks.xlsx from previous job
       uses: actions/download-artifact@v4
       with:
         name: Intermediate-Stocks
@@ -56,7 +66,7 @@ jobs:
     - name: Run stock_sentiment.py
       run: python stock_sentiment.py
 
-    - name: Upload final output
+    - name: Upload final Stocks.xlsx
       uses: actions/upload-artifact@v4
       with:
         name: Final-Stocks
