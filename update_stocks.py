@@ -136,7 +136,7 @@ try:
     # === Config ===
     file_path = "stocks.xlsx"
     sheet_name = "Stocks"
-    max_new_tickers = 5 # Use this for fetching most active
+    max_new_tickers = 100 # Use this for fetching most active
 
     # === Load existing stocks ===
     try:
