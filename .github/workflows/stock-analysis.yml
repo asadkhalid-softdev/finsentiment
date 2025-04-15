@@ -27,7 +27,7 @@ jobs:
         pip install -r requirements.txt
 
     - name: Patch yahoo_fin bugs (52 Week Range + Change %)
-      id: patch_yahoo_fin # Added an ID for potential future use
+      id: patch_yahoo_fin
       run: |
         # Find the file path for yahoo_fin.stock_info
         FILE=$(python -c "import yahoo_fin.stock_info as s; print(s.__file__)")
@@ -40,37 +40,50 @@ jobs:
         fi
 
         echo "--- Content Before Patching ---"
-        # Display the relevant function content for debugging (adjust grep context lines '-C' if needed)
         grep -C 15 '_raw_get_daily_info' "$FILE" || echo "WARNING: Could not grep _raw_get_daily_info before patching."
         echo "---"
 
         # Patch 1: Make '52 Week Range' deletion conditional and robust to whitespace
-        # Matches optional whitespace at the start, then the exact delete line.
         echo "Applying Patch 1: 52 Week Range (Conditional Deletion)"
+        # Target: Optional whitespace + del df["52 Week Range"]
         sed -i 's|^\s*del df\["52 Week Range"\]|    if "52 Week Range" in df.columns: del df["52 Week Range"]|' "$FILE"
         if grep -q 'if "52 Week Range" in df.columns: del df\["52 Week Range"\]' "$FILE"; then
           echo "INFO: Patch 1 applied successfully."
         else
-          echo "WARNING: Patch 1 may not have been applied. Check 'Content Before Patching' and sed command."
+          # Check if it was already patched or pattern mismatch
+           if ! grep -q '^\s*del df\["52 Week Range"\]' "$FILE"; then
+             echo "INFO: Patch 1 target line not found, likely already patched or library updated."
+           else
+             echo "WARNING: Patch 1 may not have been applied. Check 'Content Before Patching' and sed command."
+           fi
         fi
 
-        # Patch 2: Rename '% Change' ONLY on the specific map assignment line
-        # Targets the line starting with optional spaces, df["% Change"] = df["% Change"].map(...)
-        # and replaces the *first* df["% Change"] on that line.
-        echo "Applying Patch 2: % Change -> Change % (Specific Line)"
-        # Note: Escaped characters: \[, \], \., %
-        sed -i '/^\s*df\["% Change"\] = df\["% Change"\]\.map(lambda x: float(x\.strip/s|df\["% Change"\]|df["Change %"]|1' "$FILE"
-        # Check if the specific line now contains 'Change %' where expected
-        if grep -q '^\s*df\["Change %"\] = df\["% Change"\]\.map(lambda x: float(x\.strip' "$FILE"; then
+        # Patch 2: Correct column name from "% Change" to "Change %" on the map line
+        # Target line: Optional whitespace + df["% Change"] = df["% Change"].map(...)
+        echo "Applying Patch 2: Correcting '% Change' to 'Change %' on map line"
+        # Use 'g' flag to replace all occurrences on the matched line
+        sed -i '/^\s*df\["% Change"\] = df\["% Change"\]\.map(lambda x: float(x\.strip/s|"% Change"|"Change %"|g' "$FILE"
+        # Check if the specific line now uses 'Change %' in both places
+        if grep -q '^\s*df\["Change %"\] = df\["Change %"\]\.map(lambda x: float(x\.strip' "$FILE"; then
            echo "INFO: Patch 2 applied successfully."
         else
-           echo "WARNING: Patch 2 may not have been applied. Check 'Content Before Patching' and sed command. The line structure in the library might have changed."
+           # Check if it was already patched or pattern mismatch
+           if ! grep -q '^\s*df\["% Change"\] = df\["% Change"\]\.map(lambda x: float(x\.strip' "$FILE"; then
+               # Check if it already looks like the patched version
+               if grep -q '^\s*df\["Change %"\] = df\["Change %"\]\.map(lambda x: float(x\.strip' "$FILE"; then
+                   echo "INFO: Patch 2 target line not found, likely already patched or library updated."
+               else
+                   echo "WARNING: Patch 2 target line not found and doesn't match expected patched state. Library may have changed significantly."
+               fi
+           else
+               echo "WARNING: Patch 2 may not have been applied. Check 'Content Before Patching' and sed command."
+           fi
         fi
 
         echo "--- Content After Patching ---"
-        # Display the relevant function content again to verify patches
         grep -C 15 '_raw_get_daily_info' "$FILE" || echo "WARNING: Could not grep _raw_get_daily_info after patching."
         echo "--- End Patching ---"
+
 
     - name: Run update_stocks.py
       run: python update_stocks.py
