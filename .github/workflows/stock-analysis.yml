@@ -24,14 +24,47 @@ jobs:
         pip install -r requirements.txt
 
     - name: Patch yahoo_fin bugs (52 Week Range + Change %)
-      run: |
-        FILE=$(python -c "import yahoo_fin.stock_info as s; print(s.__file__)")
+          run: |
+            # Find the file path
+            FILE=$(python -c "import yahoo_fin.stock_info as s; print(s.__file__)")
+            echo "Found yahoo_fin.stock_info at: $FILE"
 
-        # Patch: avoid KeyError on '52 Week Range'
-        sed -i 's|del df\["52 Week Range"\]|if "52 Week Range" in df.columns: del df["52 Week Range"]|' "$FILE"
+            # Verify the file exists
+            if [ ! -f "$FILE" ]; then
+              echo "Error: yahoo_fin file not found at $FILE"
+              exit 1
+            fi
 
-        # Patch: rename '% Change' to 'Change %' in mapping line
-        sed -i 's|df\["% Change"\]|df["Change %"]|' "$FILE"
+            echo "--- Content Before Patching ---"
+            # Display the relevant function content for debugging (optional but helpful)
+            # Adjust grep context lines (-C) if needed
+            grep -C 10 '_raw_get_daily_info' "$FILE" || echo "Could not grep _raw_get_daily_info"
+            echo "---"
+
+            # Patch 1: Make '52 Week Range' deletion conditional (more robust)
+            # Use a unique part of the line to avoid accidental matches
+            # Assuming the original line is exactly 'del df["52 Week Range"]' often preceded by indentation
+            echo "Applying Patch 1: 52 Week Range"
+            sed -i 's|^\s*del df\["52 Week Range"\]|    if "52 Week Range" in df.columns: del df["52 Week Range"]|' "$FILE"
+
+            # Patch 2: Rename '% Change' ONLY on the specific map line
+            # Target the line containing the assignment and the map function call
+            echo "Applying Patch 2: % Change -> Change %"
+            # Be VERY specific about the line you want to change. Adjust if the line in your version differs.
+            # This targets the line starting with optional spaces, df["% Change"] = df["% Change"].map(...)
+            # and replaces the *first* df["% Change"] on that line.
+            sed -i '/^\s*df\["% Change"\] = df\["% Change"\]\.map(lambda x: float(x\.strip/s|df\["% Change"\]|df["Change %"]|' "$FILE"
+            # If the line structure is slightly different, you might need to adjust the pattern above.
+            # For example, if there's no assignment on the same line:
+            # sed -i '/^\s*df\["% Change"\]\.map(lambda x: float(x\.strip/s|df\["% Change"\]|df["Change %"]|' "$FILE"
+
+            echo "--- Content After Patching ---"
+            # Display the relevant function content again to verify patches
+            grep -C 10 '_raw_get_daily_info' "$FILE" || echo "Could not grep _raw_get_daily_info"
+            echo "--- End Patching ---"
+
+            # Add a check to see if sed actually made changes (optional)
+            # git diff --exit-code "$FILE" || echo "File $FILE was modified by sed."
 
     - name: Run update_stocks.py
       run: python update_stocks.py
