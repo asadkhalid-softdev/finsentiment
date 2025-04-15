@@ -23,15 +23,15 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-  - name: Patch yahoo_fin bugs (52 Week Range + Change %)
-    run: |
-      FILE=$(python -c "import yahoo_fin.stock_info as s; print(s.__file__)")
+    - name: Patch yahoo_fin bugs (52 Week Range + Change %)
+      run: |
+        FILE=$(python -c "import yahoo_fin.stock_info as s; print(s.__file__)")
 
-      # Patch: avoid KeyError on '52 Week Range'
-      sed -i 's|del df\["52 Week Range"\]|if "52 Week Range" in df.columns: del df["52 Week Range"]|' "$FILE"
+        # Patch: avoid KeyError on '52 Week Range'
+        sed -i 's|del df\["52 Week Range"\]|if "52 Week Range" in df.columns: del df["52 Week Range"]|' "$FILE"
 
-      # Patch: rename '% Change' to 'Change %' in mapping line
-      sed -i 's|df\["% Change"\]|df["Change %"]|' "$FILE"
+        # Patch: rename '% Change' to 'Change %' in mapping line
+        sed -i 's|df\["% Change"\]|df["Change %"]|' "$FILE"
 
     - name: Run update_stocks.py
       run: python update_stocks.py
@@ -43,7 +43,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: Intermediate-Stocks
-        path: stocks.xlsx
+        path: Stocks.xlsx
 
   sentiment-analysis:
     needs: update-stock-list
