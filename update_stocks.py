@@ -136,7 +136,7 @@ try:
     # === Config ===
     file_path = "stocks.xlsx"
     sheet_name = "Stocks"
-    max_new_tickers = 100 # Use this for fetching most active
+    max_new_tickers = 5 # Use this for fetching most active
 
     # === Load existing stocks ===
     try:
@@ -164,11 +164,21 @@ try:
     if most_active_df is None or 'Symbol' not in most_active_df.columns:
         print("❌ Critical Error: Could not fetch or parse most active stocks. Exiting.")
         sys.exit(1) # Exit if we can't get the source list
+        
+    print(f"most_active_df.columns: {most_active_df.columns.tolist()}")
 
     if most_active_df.empty:
          print("⚠️ Fetched most active stocks table, but it was empty.")
          trending_tickers = []
     else:
+        # Create a dictionary of ticker-to-name mappings for faster lookup
+        ticker_name_map = {}
+        if 'Name' in most_active_df.columns:
+            ticker_name_map = dict(zip(most_active_df['Symbol'], most_active_df['Name']))
+            print("✅ Successfully created ticker-to-name mapping from most_active_df.")
+        else:
+            print("⚠️ 'Name' column not found in most_active_df. Will use fallback method for company names.")
+        
         trending_tickers = most_active_df['Symbol'].tolist()
         print(f"✅ Retrieved {len(trending_tickers)} trending tickers using custom function.")
         # Optional: Print first few tickers
@@ -195,12 +205,18 @@ try:
         print(f"\nProcessing new ticker ({processed_count}/{len(trending_tickers)}): {ticker}")
 
         try:
-            # Get company name using custom function
-            company_name = get_yahoo_quote_name(ticker)
+            # Get company name from the most_active_df if available
+            if ticker in ticker_name_map and ticker_name_map[ticker]:
+                company_name = ticker_name_map[ticker]
+                print(f"✅ Using company name from most_active_df: {company_name}")
+            else:
+                # Fallback to scraping the name if not available in most_active_df
+                print(f"⚠️ Company name not found in most_active_df for {ticker}. Fetching from quote page...")
+                company_name = get_yahoo_quote_name(ticker)
 
             new_entries.append({
                 'Ticker': ticker,
-                'Company Name': company_name, # Use the scraped name
+                'Company Name': company_name,
                 'ISIN': '',  # placeholder
                 'Domain/Topic': 'Trending',
                 'inGermany': '',
