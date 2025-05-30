@@ -5,7 +5,7 @@ name: Daily Stock Pipeline
 on:
   workflow_dispatch: # Allows manual triggering
   schedule:
-    - cron: '20 6 * * *'  # every day at 06:20 UTC
+    - cron: '20 6 * * 1'  # every Monday at 06:20 UTC
 
 jobs:
   update-stock-list:
