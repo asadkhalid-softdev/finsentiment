@@ -5,11 +5,29 @@ name: Daily Stock Pipeline
 on:
   workflow_dispatch:  # Allows manual triggering
   schedule:
-    - cron: '0 17 * * 5'  # Every Friday at 17:00 UTC (after Germany market close year-round)
+    - cron: '0 17 * * 1'  # Every Monday at 17:00 UTC; jobs below gate this to the last Monday of the month
 
 jobs:
+  check-last-monday:
+    name: Check Last Monday
+    runs-on: ubuntu-latest
+    outputs:
+      is_last_monday: ${{ steps.check.outputs.is_last_monday }}
+
+    steps:
+    - name: Check whether today is the last Monday of the month
+      id: check
+      run: |
+        if [ "$(date -u -d '+7 days' +%m)" != "$(date -u +%m)" ]; then
+          echo "is_last_monday=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "is_last_monday=false" >> "$GITHUB_OUTPUT"
+        fi
+
   update-stock-list:
     name: Update Stock List and Apply Patches
+    needs: check-last-monday
+    if: ${{ github.event_name != 'schedule' || needs.check-last-monday.outputs.is_last_monday == 'true' }}
     runs-on: ubuntu-latest
 
     steps:
