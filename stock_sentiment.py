@@ -332,17 +332,6 @@ def update_stock_analysis():
         )
         results_df = results_df.sort_values('Sentiment_Score', ascending=False)
 
-        # Save allocation sheet to stocks_metrics.xlsx
-        alloc_sheet = datetime.now().strftime('%Y-%m-%d')
-        alloc_cols = [
-            'Company Name', 'Ticker', 'Region', 'Sentiment_Score',
-            'Profit_Margin', 'Revenue_Growth', 'Debt_To_Equity',
-            'Current_Price', 'Shares', 'Actual_Investment', 'Portfolio_Percentage',
-        ]
-        with pd.ExcelWriter(METRICS_FILE, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
-            results_df[alloc_cols].to_excel(writer, sheet_name=alloc_sheet, index=False)
-
-        print(f"\nAllocation saved to {METRICS_FILE} → sheet '{alloc_sheet}'")
 
         pd.set_option('display.float_format', lambda x: '%.2f' % x)
         display_cols = [
