@@ -76,3 +76,5 @@ coverage.xml
 stock_names.xlsx
 ~*.xlsx
 .~lock.stocks.xlsx#
+*.backup-before-tr*
+/outputs

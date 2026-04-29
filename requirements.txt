@@ -4,3 +4,4 @@ yfinance
 tqdm
 openpyxl
 requests
+playwright
