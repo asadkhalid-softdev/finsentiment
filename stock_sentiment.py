@@ -13,7 +13,7 @@ METRICS_SHEET = "Metrics"
 CACHE_MINUTES = 30
 
 METRICS_COLUMNS = [
-    'Ticker', 'Company Name', 'Domain/Topic', 'Region',
+    'Ticker', 'Company Name', 'Region',
     'Sentiment_Score', 'Current_Price',
     '1Y_Momentum', '3Y_Momentum', 'Volume_Trend',
     'Market_Cap', 'PE_Ratio', 'Profit_Margin',
@@ -182,6 +182,14 @@ def load_metrics_cache() -> pd.DataFrame:
         return pd.DataFrame(columns=METRICS_COLUMNS)
     try:
         df = pd.read_excel(METRICS_FILE, sheet_name=METRICS_SHEET)
+        if 'Domain/Topic' in df.columns:
+            df = df.drop(columns=['Domain/Topic'])
+        if df.empty:
+            return pd.DataFrame(columns=METRICS_COLUMNS)
+        for col in METRICS_COLUMNS:
+            if col not in df.columns:
+                df[col] = np.nan
+        df = df[METRICS_COLUMNS]
         df['Fetched_At'] = pd.to_datetime(df['Fetched_At'])
         print(f"Loaded {len(df)} cached rows from {METRICS_FILE}")
         return df
@@ -226,8 +234,8 @@ def upsert_and_save(cache_df: pd.DataFrame, new_row: dict) -> pd.DataFrame:
 def _ensure_stocks_file() -> bool:
     if not os.path.exists('stocks.xlsx'):
         empty = pd.DataFrame(columns=[
-            'Ticker', 'Company Name', 'ISIN', 'Domain/Topic',
-            'Region', 'Boycott', 'Reason', 'Ignore',
+            'Ticker', 'Company Name', 'ISIN', 'Region',
+            'Boycott', 'Reason', 'Ignore',
         ])
         with pd.ExcelWriter('stocks.xlsx', engine='openpyxl') as writer:
             empty.to_excel(writer, sheet_name='Stocks', index=False)
@@ -242,6 +250,8 @@ def update_stock_analysis():
             return
 
         df = pd.read_excel('stocks.xlsx', sheet_name='Stocks')
+        if 'Domain/Topic' in df.columns:
+            df = df.drop(columns=['Domain/Topic'])
         df = df[(df['Boycott'] != 'Yes') & (df['Ignore'] != 'Yes')]
         print(f"Loaded {len(df)} stocks from stocks.xlsx")
 
@@ -286,8 +296,8 @@ def update_stock_analysis():
 
                     new_row = {
                         'Ticker': symbol,
-                        'Company Name': name,
-                        'Domain/Topic': row.get('Domain/Topic', ''),
+                        # Prefer Yahoo name — corrects bad Company Name from stocks.xlsx (e.g. after old strip bug)
+                        'Company Name': (stock_info.get('longName') or stock_info.get('shortName') or name).strip(),
                         'Region': row.get('Region', ''),
                         'Sentiment_Score': sentiment_score,
                         'Current_Price': technical_data['current_price'],

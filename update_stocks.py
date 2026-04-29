@@ -43,15 +43,14 @@ def fetch_most_active(region: str, count: int = COUNT_PER_REGION) -> list[dict]:
     for q in quotes:
         symbol = q.get('symbol', '').strip().upper()
         name = q.get('shortName') or q.get('longName') or symbol
-        # Strip trailing junk characters Yahoo sometimes appends to German names
-        name = name.strip(' \tINR')
+        # Whitespace only — str.strip(' \tINR') wrongly strips leading letters I/N/R (e.g. "NVIDIA" → "VIDIA")
+        name = str(name).strip()
         if not symbol:
             continue
         entries.append({
             'Ticker': symbol,
             'Company Name': name,
             'ISIN': '',
-            'Domain/Topic': '',
             'Region': region,
             'Boycott': '',
             'Reason': '',
@@ -61,11 +60,13 @@ def fetch_most_active(region: str, count: int = COUNT_PER_REGION) -> list[dict]:
 
 
 def load_existing(file_path: str, sheet_name: str) -> pd.DataFrame:
-    expected_cols = ['Ticker', 'Company Name', 'ISIN', 'Domain/Topic',
-                     'Region', 'Boycott', 'Reason', 'Ignore']
+    expected_cols = ['Ticker', 'Company Name', 'ISIN', 'Region',
+                     'Boycott', 'Reason', 'Ignore']
     try:
         df = pd.read_excel(file_path, sheet_name=sheet_name)
         print(f"Loaded {len(df)} existing stocks from {file_path}")
+        if 'Domain/Topic' in df.columns:
+            df = df.drop(columns=['Domain/Topic'])
         # Migrate: rename inGermany -> Region if present
         if 'inGermany' in df.columns and 'Region' not in df.columns:
             df = df.rename(columns={'inGermany': 'Region'})
