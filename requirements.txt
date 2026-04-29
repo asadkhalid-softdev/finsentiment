@@ -1,10 +1,6 @@
 pandas
-yfinance
 numpy
+yfinance
 tqdm
 openpyxl
-pandas
-openpyxl
-requests_html
-lxml_html_clean
-html5lib
+requests

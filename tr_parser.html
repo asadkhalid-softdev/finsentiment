@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trade Republic Portfolio Parser</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --surface2: #1c1c28;
+    --border: #2a2a3a;
+    --accent: #7b5af5;
+    --accent-hover: #9370ff;
+    --green: #2ecc71;
+    --red: #e74c3c;
+    --text: #e8e8f0;
+    --text-muted: #7a7a9a;
+    --text-dim: #4a4a6a;
+    --radius: 10px;
+    --font: 'Inter', system-ui, sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    min-height: 100vh;
+    padding: 32px 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 28px;
+  }
+
+  header { text-align: center; }
+  header h1 { font-size: 1.5rem; font-weight: 600; letter-spacing: -0.02em; }
+  header p { margin-top: 6px; color: var(--text-muted); font-size: 0.875rem; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    width: 100%;
+    max-width: 960px;
+  }
+
+  .paste-area label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+  }
+
+  textarea {
+    width: 100%;
+    height: 130px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    padding: 12px 14px;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  textarea::placeholder { color: var(--text-dim); }
+  textarea:focus { border-color: var(--accent); }
+
+  .actions-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 18px;
+    border: none;
+    border-radius: 7px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s, opacity 0.15s, color 0.15s;
+    outline: none;
+  }
+
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-hover); }
+
+  .btn-secondary { background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border); }
+  .btn-secondary:hover { color: var(--text); border-color: #3a3a5a; }
+
+  .btn-icon {
+    padding: 8px;
+    background: var(--surface2);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+  }
+  .btn-icon:hover { color: var(--text); border-color: #3a3a5a; }
+  .btn-icon svg { display: block; }
+
+  .status-badge { font-size: 0.78rem; color: var(--text-muted); margin-left: auto; }
+
+  /* Table section */
+  .table-section { width: 100%; max-width: 960px; display: none; }
+
+  .table-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .table-title { font-size: 0.85rem; font-weight: 500; color: var(--text-muted); }
+  .table-header-actions { display: flex; gap: 8px; }
+
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.855rem; }
+
+  /* Column headers */
+  thead th {
+    background: var(--surface2);
+    color: var(--text-muted);
+    font-weight: 500;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    padding: 0;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+    user-select: none;
+  }
+
+  .th-inner {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 11px 14px;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+  }
+  .th-inner:hover { background: #22223a; color: var(--text); }
+
+  thead th.sorted .th-inner { color: var(--accent); }
+
+  .th-label { flex: 1; }
+
+  /* Right-align numeric column headers */
+  thead th.num-col .th-inner { justify-content: flex-end; }
+  thead th.num-col .th-label { flex: none; }
+
+  /* Sort icon */
+  .sort-icon {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 1px;
+    opacity: 0.3;
+    transition: opacity 0.15s;
+    flex-shrink: 0;
+  }
+  .sort-icon span {
+    display: block;
+    width: 0;
+    height: 0;
+  }
+  .sort-icon .arr-up {
+    border-left: 3.5px solid transparent;
+    border-right: 3.5px solid transparent;
+    border-bottom: 4px solid currentColor;
+  }
+  .sort-icon .arr-down {
+    border-left: 3.5px solid transparent;
+    border-right: 3.5px solid transparent;
+    border-top: 4px solid currentColor;
+  }
+  .th-inner:hover .sort-icon { opacity: 0.7; }
+  thead th.sorted .sort-icon { opacity: 1; }
+  thead th.sorted.asc .arr-down { opacity: 0.25; }
+  thead th.sorted.desc .arr-up { opacity: 0.25; }
+
+
+  /* Table rows */
+  tbody tr { border-bottom: 1px solid var(--border); transition: background 0.1s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--surface2); }
+
+  td { padding: 11px 14px; vertical-align: middle; white-space: nowrap; }
+
+  td.col-num { color: var(--text-dim); font-size: 0.75rem; width: 36px; }
+  td.col-name { font-weight: 500; color: var(--text); white-space: normal; min-width: 140px; }
+  td.col-isin { font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.78rem; color: var(--text-muted); letter-spacing: 0.02em; }
+  td.col-shares { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; text-align: right; color: var(--text-muted); }
+  td.col-price { font-family: 'JetBrains Mono', monospace; font-weight: 500; text-align: right; }
+  td.col-value { font-family: 'JetBrains Mono', monospace; font-weight: 500; text-align: right; color: var(--text-muted); }
+  td.col-perf { text-align: right; font-weight: 600; font-size: 0.82rem; }
+
+  .perf-positive { color: var(--green); }
+  .perf-negative { color: var(--red); }
+  .perf-arrow { font-size: 0.6rem; margin-right: 2px; }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%) translateY(10px);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 9px 18px;
+    border-radius: 8px;
+    font-size: 0.83rem;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s, transform 0.2s;
+    white-space: nowrap;
+    z-index: 999;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* Error */
+  .error-msg {
+    background: rgba(231,76,60,0.1);
+    border: 1px solid rgba(231,76,60,0.3);
+    color: #e74c3c;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 0.82rem;
+    display: none;
+    margin-top: 10px;
+  }
+
+  @media (max-width: 640px) {
+    body { padding: 20px 12px; }
+    td, th { padding: 9px 10px; }
+    td.col-isin, td.col-shares { display: none; }
+    thead th.col-isin, thead th.col-shares { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Trade Republic Portfolio Parser</h1>
+  <p>Paste portfolio HTML to extract investment data as a table</p>
+</header>
+
+<div class="card paste-area">
+  <label for="html-input">Paste HTML</label>
+  <textarea id="html-input" placeholder="Paste the Trade Republic portfolio section HTML here…"></textarea>
+  <div class="error-msg" id="error-msg"></div>
+  <div class="actions-row">
+    <button class="btn-primary" id="parse-btn">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v2H2zm0 4h8v2H2zm0 4h10v2H2z"/></svg>
+      Parse
+    </button>
+    <button class="btn-secondary" id="clear-btn">Clear</button>
+    <span class="status-badge" id="status-badge"></span>
+  </div>
+</div>
+
+<div class="table-section" id="table-section">
+  <div class="table-header-row">
+    <span class="table-title" id="table-title"></span>
+    <div class="table-header-actions">
+      <button class="btn-icon" id="copy-isin-btn" title="Copy names as Markdown list">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M5 1h8a2 2 0 0 1 2 2v9h-1.5V3a.5.5 0 0 0-.5-.5H5V1zm-3 3h8a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zm0 1.5v9h8V5.5H2z"/>
+        </svg>
+      </button>
+      <button class="btn-icon" id="download-btn" title="Download as Markdown">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M8 10.5L4.5 7h2V2h3v5h2L8 10.5zM2 13h12v1.5H2V13z"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table id="result-table">
+      <thead id="table-head">
+        <tr>
+          <th data-col="num" class="col-num">
+            <div class="th-inner">
+              <span class="th-label">#</span>
+              <span class="sort-icon"><span class="arr-up"></span><span class="arr-down"></span></span>
+            </div>
+          </th>
+          <th data-col="name" class="col-name">
+            <div class="th-inner">
+              <span class="th-label">Name</span>
+              <span class="sort-icon"><span class="arr-up"></span><span class="arr-down"></span></span>
+            </div>
+          </th>
+          <th data-col="isin" class="col-isin">
+            <div class="th-inner">
+              <span class="th-label">ISIN</span>
+              <span class="sort-icon"><span class="arr-up"></span><span class="arr-down"></span></span>
+            </div>
+          </th>
+          <th data-col="shares" class="col-shares num-col">
+            <div class="th-inner">
+              <span class="th-label">Shares</span>
+              <span class="sort-icon"><span class="arr-up"></span><span class="arr-down"></span></span>
+            </div>
+          </th>
+          <th data-col="price" class="col-price num-col">
+            <div class="th-inner">
+              <span class="th-label">Invested</span>
+              <span class="sort-icon"><span class="arr-up"></span><span class="arr-down"></span></span>
+            </div>
+          </th>
+          <th data-col="value" class="col-value num-col">
+            <div class="th-inner">
+              <span class="th-label">Price</span>
+              <span class="sort-icon"><span class="arr-up"></span><span class="arr-down"></span></span>
+            </div>
+          </th>
+          <th data-col="perf" class="col-perf num-col">
+            <div class="th-inner">
+              <span class="th-label">Return</span>
+              <span class="sort-icon"><span class="arr-up"></span><span class="arr-down"></span></span>
+            </div>
+          </th>
+        </tr>
+      </thead>
+      <tbody id="table-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const htmlInput   = document.getElementById('html-input');
+  const parseBtn    = document.getElementById('parse-btn');
+  const clearBtn    = document.getElementById('clear-btn');
+  const tableSection = document.getElementById('table-section');
+  const tableBody   = document.getElementById('table-body');
+  const tableHead   = document.getElementById('table-head');
+  const tableTitle  = document.getElementById('table-title');
+  const statusBadge = document.getElementById('status-badge');
+  const errorMsg    = document.getElementById('error-msg');
+  const downloadBtn = document.getElementById('download-btn');
+  const copyIsinBtn  = document.getElementById('copy-isin-btn');
+  const toast       = document.getElementById('toast');
+
+  let parsedRows = [];
+  let sortCol    = 'num';
+  let sortDir    = 'asc';
+
+  // ── Utilities ──────────────────────────────────────────────────────────────
+
+  function showToast(msg, duration = 2000) {
+    toast.textContent = msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), duration);
+  }
+
+  function showError(msg) { errorMsg.textContent = msg; errorMsg.style.display = 'block'; }
+  function clearError()   { errorMsg.style.display = 'none'; errorMsg.textContent = ''; }
+
+  function escHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  // ── Parsing ────────────────────────────────────────────────────────────────
+
+  function parseShares(el) {
+    if (!el) return '';
+    const clone = el.cloneNode(true);
+    clone.querySelectorAll('svg').forEach(s => s.remove());
+    return clone.textContent.trim();
+  }
+
+  function parsePrice(el) {
+    if (!el) return '';
+    return el.textContent.replace(/\u00a0/g, ' ').trim();
+  }
+
+  function parsePerformance(el) {
+    if (!el) return { text: '', value: null, positive: null };
+    const dataEl = el.querySelector('data.performance__relative');
+    const text   = dataEl ? dataEl.textContent.replace(/\u00a0/g, ' ').trim() : '';
+    const value  = dataEl ? parseFloat(dataEl.getAttribute('value')) : null;
+    const pos    = el.classList.contains('-positive');
+    const neg    = el.classList.contains('-negative');
+    return { text, value, positive: pos ? true : (neg ? false : null) };
+  }
+
+  function strToNum(str) {
+    const m = String(str).match(/[\d.,]+/);
+    return m ? parseFloat(m[0].replace(',', '.')) : 0;
+  }
+
+  function calcValue(shares, price) {
+    const s = parseFloat(shares.replace(',', '.'));
+    const p = strToNum(price);
+    if (isNaN(s) || isNaN(p)) return '';
+    return (s * p).toFixed(2) + ' €';
+  }
+
+  function parseHTML() {
+    clearError();
+    const raw = htmlInput.value.trim();
+    if (!raw) { showError('Please paste some HTML first.'); return; }
+
+    const doc   = new DOMParser().parseFromString(raw, 'text/html');
+    const items = doc.querySelectorAll('li[id]');
+    if (!items.length) {
+      showError('No portfolio items found. Make sure you paste the full <section> or <ul> element.');
+      return;
+    }
+
+    parsedRows = [];
+    items.forEach(li => {
+      const name   = li.querySelector('.instrumentListItem__name')?.textContent.trim() ?? '';
+      if (!name) return;
+      const isin   = li.id;
+      const shares = parseShares(li.querySelector('.instrumentListItem__sharesTag'));
+      const price  = parsePrice(li.querySelector('.instrumentListItem__currentPrice'));
+      const perf   = parsePerformance(li.querySelector('.trPerformanceMeter'));
+      const value  = calcValue(shares, price);
+      parsedRows.push({ isin, name, shares, price, value, perf });
+    });
+
+    sortCol = 'num';
+    sortDir = 'asc';
+    applySortAndRender();
+
+    tableSection.style.display = 'block';
+    tableTitle.textContent = `${parsedRows.length} positions`;
+    statusBadge.textContent = `${parsedRows.length} items parsed`;
+  }
+
+  // ── Sorting ────────────────────────────────────────────────────────────────
+
+  function sortValue(row, col) {
+    switch (col) {
+      case 'num':    return parsedRows.indexOf(row);
+      case 'name':   return row.name.toLowerCase();
+      case 'isin':   return row.isin;
+      case 'shares': return strToNum(row.shares);
+      case 'price':  return strToNum(row.price);
+      case 'value':  return strToNum(row.value);
+      case 'perf':   return (row.perf.positive === false ? -1 : 1) * (row.perf.value ?? 0);
+      default:       return 0;
+    }
+  }
+
+  function applySortAndRender() {
+    const sorted = [...parsedRows].sort((a, b) => {
+      const va = sortValue(a, sortCol);
+      const vb = sortValue(b, sortCol);
+      if (typeof va === 'string') return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+      return sortDir === 'asc' ? va - vb : vb - va;
+    });
+    renderTable(sorted);
+    updateSortUI();
+  }
+
+  function updateSortUI() {
+    tableHead.querySelectorAll('th').forEach(th => {
+      const col = th.dataset.col;
+      th.classList.toggle('sorted', col === sortCol);
+      th.classList.toggle('asc',    col === sortCol && sortDir === 'asc');
+      th.classList.toggle('desc',   col === sortCol && sortDir === 'desc');
+    });
+  }
+
+  // ── Rendering ──────────────────────────────────────────────────────────────
+
+  function renderTable(rows) {
+    tableBody.innerHTML = '';
+    rows.forEach((r, i) => {
+      const tr        = document.createElement('tr');
+      const perfSign  = r.perf.positive === true ? '+' : (r.perf.positive === false ? '−' : '');
+      const perfClass = r.perf.positive === true ? 'perf-positive' : (r.perf.positive === false ? 'perf-negative' : '');
+      const arrow     = r.perf.positive === true ? '▲' : (r.perf.positive === false ? '▼' : '');
+
+      tr.innerHTML = `
+        <td class="col-num">${i + 1}</td>
+        <td class="col-name">${escHtml(r.name)}</td>
+        <td class="col-isin">${escHtml(r.isin)}</td>
+        <td class="col-shares">${escHtml(r.shares)}</td>
+        <td class="col-price">${escHtml(r.price)}</td>
+        <td class="col-value">${escHtml(r.value)}</td>
+        <td class="col-perf ${perfClass}"><span class="perf-arrow">${arrow}</span>${escHtml(perfSign + r.perf.text)}</td>
+      `;
+      tableBody.appendChild(tr);
+    });
+  }
+
+  // ── Markdown ───────────────────────────────────────────────────────────────
+
+  function buildMarkdown() {
+    const header = '| # | Name | ISIN | Shares | Invested | Price | Return |';
+    const sep    = '|---|------|------|-------:|------:|------:|-------:|';
+    const rows   = [...parsedRows]
+      .sort((a, b) => {
+        const va = sortValue(a, sortCol), vb = sortValue(b, sortCol);
+        if (typeof va === 'string') return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+        return sortDir === 'asc' ? va - vb : vb - va;
+      })
+      .map((r, i) => {
+        const perfSign = r.perf.positive === true ? '+' : (r.perf.positive === false ? '−' : '');
+        const arrow    = r.perf.positive === true ? '▲' : (r.perf.positive === false ? '▼' : '');
+        return `| ${i+1} | ${r.name} | ${r.isin} | ${r.shares} | ${r.price} | ${r.value} | ${arrow} ${perfSign}${r.perf.text} |`;
+      });
+    return [header, sep, ...rows].join('\n');
+  }
+
+  function downloadMarkdown() {
+    if (!parsedRows.length) return;
+    const blob = new Blob([buildMarkdown()], { type: 'text/markdown;charset=utf-8' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = `portfolio_${new Date().toISOString().slice(0, 10)}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Markdown downloaded');
+  }
+
+  function copyNames() {
+    if (!parsedRows.length) return;
+    const md = parsedRows.map(r => `- ${r.name}`).join('\n');
+    navigator.clipboard.writeText(md).then(() =>
+      showToast(`Copied ${parsedRows.length} names to clipboard`)
+    );
+  }
+
+  // ── Events ─────────────────────────────────────────────────────────────────
+
+  // Sort on header click (but not on the copy icon)
+  tableHead.addEventListener('click', e => {
+    if (e.target.closest('#copy-isin-icon')) return;
+    const th = e.target.closest('th[data-col]');
+    if (!th || !parsedRows.length) return;
+    const col = th.dataset.col;
+    if (col === sortCol) {
+      sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      sortCol = col;
+      sortDir = 'asc';
+    }
+    applySortAndRender();
+  });
+
+  copyIsinBtn.addEventListener('click', copyNames);
+
+  parseBtn.addEventListener('click', parseHTML);
+  htmlInput.addEventListener('paste', () => setTimeout(parseHTML, 0));
+  htmlInput.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) parseHTML(); });
+
+  clearBtn.addEventListener('click', () => {
+    htmlInput.value = '';
+    tableSection.style.display = 'none';
+    statusBadge.textContent = '';
+    parsedRows = [];
+    clearError();
+    htmlInput.focus();
+  });
+
+  downloadBtn.addEventListener('click', downloadMarkdown);
+
+  // Auto-load default portfolio
+  (function() {
+    const defaultHTML = "<section class=\"contentSection portfolioInvestments\"><header class=\"contentSection__sectionHeader\"><div class=\"contentSection__heading\" bis_skin_checked=\"1\"><h2 class=\"contentSection__headingTitle\">Investments</h2></div><div class=\"dropdownList\" bis_skin_checked=\"1\"><button class=\"dropdownList__openButton\" aria-haspopup=\"true\" aria-expanded=\"false\" type=\"button\"><span>Since buy</span><svg viewBox=\"1 3 10 7\" class=\"chevronSmall dropdownList__openChevron\" aria-hidden=\"true\"><path d=\"m9.65 3.65.7.7c.2.2.2.52 0 .71l-4 4a.5.5 0 0 1-.7 0l-4-4a.5.5 0 0 1 0-.7l.7-.71c.2-.2.52-.2.71 0L6 6.58l2.94-2.93c.2-.2.51-.2.7 0Z\"></path></svg></button><div class=\"dropdownList__listbox -luminous\" tabindex=\"-1\" role=\"listbox\" bis_skin_checked=\"1\"><div class=\"dropdownList__close\" bis_skin_checked=\"1\"><button class=\"closeButton\" type=\"button\"><svg class=\"closeIcon\" viewBox=\"0 0 12 12\" aria-hidden=\"true\"><path d=\"M3.06066017,1.64644661 L6,4.586 L8.93933983,1.64644661 C9.13460197,1.45118446 9.45118446,1.45118446 9.64644661,1.64644661 L10.3535534,2.35355339 C10.5488155,2.54881554 10.5488155,2.86539803 10.3535534,3.06066017 L7.414,6 L10.3535534,8.93933983 C10.5488155,9.13460197 10.5488155,9.45118446 10.3535534,9.64644661 L9.64644661,10.3535534 C9.45118446,10.5488155 9.13460197,10.5488155 8.93933983,10.3535534 L6,7.414 L3.06066017,10.3535534 C2.86539803,10.5488155 2.54881554,10.5488155 2.35355339,10.3535534 L1.64644661,9.64644661 C1.45118446,9.45118446 1.45118446,9.13460197 1.64644661,8.93933983 L4.586,6 L1.64644661,3.06066017 C1.45118446,2.86539803 1.45118446,2.54881554 1.64644661,2.35355339 L2.35355339,1.64644661 C2.54881554,1.45118446 2.86539803,1.45118446 3.06066017,1.64644661 Z\"></path></svg><span class=\"closeButton__text\">Close</span></button></div><ul><li id=\"investments-dailyrel\" role=\"option\" class=\"dropdownList__listItem\" aria-selected=\"false\"><!----><div bis_skin_checked=\"1\"><p class=\"dropdownList__optionName\">Daily trend (%)</p><!----></div><div class=\"dropdownList__optionIcon\" bis_skin_checked=\"1\"><svg class=\"checkMark\" viewBox=\"0 0 12 12\" aria-hidden=\"true\"><path d=\"M11.146 1.797l.708.707a.5.5 0 010 .707l-7 7a.5.5 0 01-.708 0l-4-4a.5.5 0 010-.707l.708-.707a.5.5 0 01.707 0L4.5 7.735l5.938-5.938a.5.5 0 01.707 0z\"></path></svg></div></li><li id=\"investments-dailyabs\" role=\"option\" class=\"dropdownList__listItem\" aria-selected=\"false\"><!----><div bis_skin_checked=\"1\"><p class=\"dropdownList__optionName\">Daily trend (\u20ac)</p><!----></div><div class=\"dropdownList__optionIcon\" bis_skin_checked=\"1\"><svg class=\"checkMark\" viewBox=\"0 0 12 12\" aria-hidden=\"true\"><path d=\"M11.146 1.797l.708.707a.5.5 0 010 .707l-7 7a.5.5 0 01-.708 0l-4-4a.5.5 0 010-.707l.708-.707a.5.5 0 01.707 0L4.5 7.735l5.938-5.938a.5.5 0 01.707 0z\"></path></svg></div></li><li id=\"investments-sinceBuyrel\" role=\"option\" class=\"dropdownList__listItem -selected\" aria-selected=\"true\"><!----><div bis_skin_checked=\"1\"><p class=\"dropdownList__optionName\">Since buy (%)</p><!----></div><div class=\"dropdownList__optionIcon -iconVisible\" bis_skin_checked=\"1\"><svg class=\"checkMark\" viewBox=\"0 0 12 12\" aria-hidden=\"true\"><path d=\"M11.146 1.797l.708.707a.5.5 0 010 .707l-7 7a.5.5 0 01-.708 0l-4-4a.5.5 0 010-.707l.708-.707a.5.5 0 01.707 0L4.5 7.735l5.938-5.938a.5.5 0 01.707 0z\"></path></svg></div></li><li id=\"investments-sinceBuyabs\" role=\"option\" class=\"dropdownList__listItem\" aria-selected=\"false\"><!----><div bis_skin_checked=\"1\"><p class=\"dropdownList__optionName\">Since buy (\u20ac)</p><!----></div><div class=\"dropdownList__optionIcon\" bis_skin_checked=\"1\"><svg class=\"checkMark\" viewBox=\"0 0 12 12\" aria-hidden=\"true\"><path d=\"M11.146 1.797l.708.707a.5.5 0 010 .707l-7 7a.5.5 0 01-.708 0l-4-4a.5.5 0 010-.707l.708-.707a.5.5 0 01.707 0L4.5 7.735l5.938-5.938a.5.5 0 01.707 0z\"></path></svg></div></li></ul></div></div></header><div class=\"contentSection__content\" bis_skin_checked=\"1\"><div bis_skin_checked=\"1\"></div><div bis_skin_checked=\"1\"></div></div><ul class=\"portfolioInstrumentList\"><li id=\"US5951121038\"><div class=\"-clickable instrumentListItem\" role=\"button\" tabindex=\"0\" lazy-load=\"false\" bis_skin_checked=\"1\"><div class=\"instrumentListItem__logo\" bis_skin_checked=\"1\"><div class=\"instrumentIcon\" bis_skin_checked=\"1\"><img src=\"https://assets.traderepublic.com/img/logos/US5951121038/v2/light.min.svg\" alt=\"\" class=\"instrumentIcon__image\" style=\"\"><svg class=\"trIconPlaceholderStock trInstrumentPlaceholder -small instrumentIcon__defaultImage\" viewBox=\"0 0 20 20\" style=\"display: none;\"><path d=\"M10 18a8 8 0 0 0 7.687-10.224l1.566-1.574A9.97 9.97 0 0 1 20 10c0 5.523-4.477 10-10 10S0 15.523 0 10 4.477 0 10 0a9.967 9.967 0 0 1 6.967 2.826l-1.413 1.416A8 8 0 1 0 10 18Z\"></path><path d=\"M11.978 12.095a.5.5 0 0 1-.695.013l-1.984-1.849-4.138 4.084a6.506 6.506 0 0 1-1.114-1.724l4.84-4.82a.5.5 0 0 1 .694-.011l1.994 1.858 6.855-6.87a.5.5 0 0 1 .704-.004l.714.701a.5.5 0 0 1 .004.71l-7.874 7.912Z\"></path></svg></div></div><div class=\"instrumentListItem__info\" bis_skin_checked=\"1\"><span class=\"instrumentListItem__name\">Micron Technology</span><span class=\"instrumentListItem__priceRow\"><span class=\"tag instrumentListItem__sharesTag\"><svg viewBox=\"0 0 6 6\" class=\"closeTiny instrumentListItem__sharesIcon\"><path d=\"M5.1 0.1L5.9 0.9C6 1 6 1.1 5.9 1.2L4.1 3 5.9 4.8C6 4.9 6 5 5.9 5.1L5.1 5.9C5 6 4.9 6 4.8 5.9L3 4.1 1.2 5.9C1.1 6 1 6 0.9 5.9L0.1 5.1C0 5 0 4.9 0.1 4.8L1.9 3 0.1 1.2C0 1.1 0 1 0.1 0.9L0.9 0.1C1 0 1.1 0 1.2 0.1L3 1.9 4.8 0.1C4.9 0 5 0 5.1 0.1Z\"></path></svg>1.912531</span><span class=\"instrumentListItem__currentPrice\">855.67&nbsp;\u20ac</span><!----></span><!----></div><span class=\"trPerformanceMeter -positive performance instrumentListItem__performance\"><svg class=\"trTrendArrow -xsmall -positive trPerformanceMeter__arrow\" viewBox=\"0 0 16 16\"><path d=\"M6.23784 1.30751C6.99212 -0.0985939 9.00843 -0.0985962 9.76271 1.3075L15.6196 12.2257C16.3343 13.5581 15.3691 15.1711 13.8571 15.1711H2.14341C0.631443 15.1711 -0.333754 13.5581 0.38097 12.2257L6.23784 1.30751Z\"></path></svg><!----><data class=\"performance__relative\" value=\"1.3572119146156092\">136&nbsp;%</data></span></div></li><li id=\"US8740391003\"><div class=\"-clickable instrumentListItem\" role=\"button\" tabindex=\"0\" lazy-load=\"false\" bis_skin_checked=\"1\"><div class=\"instrumentListItem__logo\" bis_skin_checked=\"1\"><div class=\"instrumentIcon\" bis_skin_checked=\"1\"><img src=\"https://assets.traderepublic.com/img/logos/US8740391003/v2/light.min.svg\" alt=\"\" class=\"instrumentIcon__image\" style=\"\"><svg class=\"trIconPlaceholderStock trInstrumentPlaceholder -small instrumentIcon__defaultImage\" viewBox=\"0 0 20 20\" style=\"display: none;\"><path d=\"M10 18a8 8 0 0 0 7.687-10.224l1.566-1.574A9.97 9.97 0 0 1 20 10c0 5.523-4.477 10-10 10S0 15.523 0 10 4.477 0 10 0a9.967 9.967 0 0 1 6.967 2.826l-1.413 1.416A8 8 0 1 0 10 18Z\"></path><path d=\"M11.978 12.095a.5.5 0 0 1-.695.013l-1.984-1.849-4.138 4.084a6.506 6.506 0 0 1-1.114-1.724l4.84-4.82a.5.5 0 0 1 .694-.011l1.994 1.858 6.855-6.87a.5.5 0 0 1 .704-.004l.714.701a.5.5 0 0 1 .004.71l-7.874 7.912Z\"></path></svg></div></div><div class=\"instrumentListItem__info\" bis_skin_checked=\"1\"><span class=\"instrumentListItem__name\">TSMC (ADR)</span><span class=\"instrumentListItem__priceRow\"><span class=\"tag instrumentListItem__sharesTag\"><svg viewBox=\"0 0 6 6\" class=\"closeTiny instrumentListItem__sharesIcon\"><path d=\"M5.1 0.1L5.9 0.9C6 1 6 1.1 5.9 1.2L4.1 3 5.9 4.8C6 4.9 6 5 5.9 5.1L5.1 5.9C5 6 4.9 6 4.8 5.9L3 4.1 1.2 5.9C1.1 6 1 6 0.9 5.9L0.1 5.1C0 5 0 4.9 0.1 4.8L1.9 3 0.1 1.2C0 1.1 0 1 0.1 0.9L0.9 0.1C1 0 1.1 0 1.2 0.1L3 1.9 4.8 0.1C4.9 0 5 0 5.1 0.1Z\"></path></svg>1.887498</span><span class=\"instrumentListItem__currentPrice\">632.31&nbsp;\u20ac</span><!----></span><!----></div><span class=\"trPerformanceMeter -positive performance instrumentListItem__performance\"><svg class=\"trTrendArrow -xsmall -positive trPerformanceMeter__arrow\" viewBox=\"0 0 16 16\"><path d=\"M6.23784 1.30751C6.99212 -0.0985939 9.00843 -0.0985962 9.76271 1.3075L15.6196 12.2257C16.3343 13.5581 15.3691 15.1711 13.8571 15.1711H2.14341C0.631443 15.1711 -0.333754 13.5581 0.38097 12.2257L6.23784 1.30751Z\"></path></svg><!----><data class=\"performance__relative\" value=\"0.2774002350416434\">27.74&nbsp;%</data></span></div></li><li id=\"US92537N1081\"><div class=\"-clickable instrumentListItem\" role=\"button\" tabindex=\"0\" lazy-load=\"false\" bis_skin_checked=\"1\"><div class=\"instrumentListItem__logo\" bis_skin_checked=\"1\"><div class=\"instrumentIcon\" bis_skin_checked=\"1\"><img src=\"https://assets.traderepublic.com/img/logos/US92537N1081/v2/light.min.svg\" alt=\"\" class=\"instrumentIcon__image\" style=\"\"><svg class=\"trIconPlaceholderStock trInstrumentPlaceholder -small instrumentIcon__defaultImage\" viewBox=\"0 0 20 20\" style=\"display: none;\"><path d=\"M10 18a8 8 0 0 0 7.687-10.224l1.566-1.574A9.97 9.97 0 0 1 20 10c0 5.523-4.477 10-10 10S0 15.523 0 10 4.477 0 10 0a9.967 9.967 0 0 1 6.967 2.826l-1.413 1.416A8 8 0 1 0 10 18Z\"></path><path d=\"M11.978 12.095a.5.5 0 0 1-.695.013l-1.984-1.849-4.138 4.084a6.506 6.506 0 0 1-1.114-1.724l4.84-4.82a.5.5 0 0 1 .694-.011l1.994 1.858 6.855-6.87a.5.5 0 0 1 .704-.004l.714.701a.5.5 0 0 1 .004.71l-7.874 7.912Z\"></path></svg></div></div><div class=\"instrumentListItem__info\" bis_skin_checked=\"1\"><span class=\"instrumentListItem__name\">Vertiv</span><span class=\"instrumentListItem__priceRow\"><span class=\"tag instrumentListItem__sharesTag\"><svg viewBox=\"0 0 6 6\" class=\"closeTiny instrumentListItem__sharesIcon\"><path d=\"M5.1 0.1L5.9 0.9C6 1 6 1.1 5.9 1.2L4.1 3 5.9 4.8C6 4.9 6 5 5.9 5.1L5.1 5.9C5 6 4.9 6 4.8 5.9L3 4.1 1.2 5.9C1.1 6 1 6 0.9 5.9L0.1 5.1C0 5 0 4.9 0.1 4.8L1.9 3 0.1 1.2C0 1.1 0 1 0.1 0.9L0.9 0.1C1 0 1.1 0 1.2 0.1L3 1.9 4.8 0.1C4.9 0 5 0 5.1 0.1Z\"></path></svg>2.287567</span><span class=\"instrumentListItem__currentPrice\">602.89&nbsp;\u20ac</span><!----></span><!----></div><span class=\"trPerformanceMeter -positive performance instrumentListItem__performance\"><svg class=\"trTrendArrow -xsmall -positive trPerformanceMeter__arrow\" viewBox=\"0 0 16 16\"><path d=\"M6.23784 1.30751C6.99212 -0.0985939 9.00843 -0.0985962 9.76271 1.3075L15.6196 12.2257C16.3343 13.5581 15.3691 15.1711 13.8571 15.1711H2.14341C0.631443 15.1711 -0.333754 13.5581 0.38097 12.2257L6.23784 1.30751Z\"></path></svg><!----><data class=\"performance__relative\" value=\"0.6982769786328341\">69.83&nbsp;%</data></span></div></li><li id=\"US8807701029\"><div class=\"-clickable instrumentListItem\" role=\"button\" tabindex=\"0\" lazy-load=\"false\" bis_skin_checked=\"1\"><div class=\"instrumentListItem__logo\" bis_skin_checked=\"1\"><div class=\"instrumentIcon\" bis_skin_checked=\"1\"><img src=\"https://assets.traderepublic.com/img/logos/US8807701029/v2/light.min.svg\" alt=\"\" class=\"instrumentIcon__image\" style=\"\"><svg class=\"trIconPlaceholderStock trInstrumentPlaceholder -small instrumentIcon__defaultImage\" viewBox=\"0 0 20 20\" style=\"display: none;\"><path d=\"M10 18a8 8 0 0 0 7.687-10.224l1.566-1.574A9.97 9.97 0 0 1 20 10c0 5.523-4.477 10-10 10S0 15.523 0 10 4.477 0 10 0a9.967 9.967 0 0 1 6.967 2.826l-1.413 1.416A8 8 0 1 0 10 18Z\"></path><path d=\"M11.978 12.095a.5.5 0 0 1-.695.013l-1.984-1.849-4.138 4.084a6.506 6.506 0 0 1-1.114-1.724l4.84-4.82a.5.5 0 0 1 .694-.011l1.994 1.858 6.855-6.87a.5.5 0 0 1 .704-.004l.714.701a.5.5 0 0 1 .004.71l-7.874 7.912Z\"></path></svg></div></div><div class=\"instrumentListItem__info\" bis_skin_checked=\"1\"><span class=\"instrumentListItem__name\">Teradyne</span><span class=\"instrumentListItem__priceRow\"><span class=\"tag instrumentListItem__sharesTag\"><svg viewBox=\"0 0 6 6\" class=\"closeTiny instrumentListItem__sharesIcon\"><path d=\"M5.1 0.1L5.9 0.9C6 1 6 1.1 5.9 1.2L4.1 3 5.9 4.8C6 4.9 6 5 5.9 5.1L5.1 5.9C5 6 4.9 6 4.8 5.9L3 4.1 1.2 5.9C1.1 6 1 6 0.9 5.9L0.1 5.1C0 5 0 4.9 0.1 4.8L1.9 3 0.1 1.2C0 1.1 0 1 0.1 0.9L0.9 0.1C1 0 1.1 0 1.2 0.1L3 1.9 4.8 0.1C4.9 0 5 0 5.1 0.1Z\"></path></svg>1.934244</span><span class=\"instrumentListItem__currentPrice\">585.79&nbsp;\u20ac</span><!----></span><!----></div><span class=\"trPerformanceMeter -positive performance instrumentListItem__performance\"><svg class=\"trTrendArrow -xsmall -positive trPerformanceMeter__arrow\" viewBox=\"0 0 16 16\"><path d=\"M6.23784 1.30751C6.99212 -0.0985939 9.00843 -0.0985962 9.76271 1.3075L15.6196 12.2257C16.3343 13.5581 15.3691 15.1711 13.8571 15.1711H2.14341C0.631443 15.1711 -0.333754 13.5581 0.38097 12.2257L6.23784 1.30751Z\"></path></svg><!----><data class=\"performance__relative\" value=\"1.06262872274347\">106&nbsp;%</data></span></div></li><li id=\"NL0010273215\"><div class=\"-clickable instrumentListItem\" role=\"button\" tabindex=\"0\" lazy-load=\"false\" bis_skin_checked=\"1\"><div class=\"instrumentListItem__logo\" bis_skin_checked=\"1\"><div class=\"instrumentIcon\" bis_skin_checked=\"1\"><img src=\"https://assets.traderepublic.com/img/logos/NL0010273215/v2/light.min.svg\" alt=\"\" class=\"instrumentIcon__image\" style=\"\"><svg class=\"trIconPlaceholderStock trInstrumentPlaceholder -small instrumentIcon__defaultImage\" viewBox=\"0 0 20 20\" style=\"display: none;\"><path d=\"M10 18a8 8 0 0 0 7.687-10.224l1.566-1.574A9.97 9.97 0 0 1 20 10c0 5.523-4.477 10-10 10S0 15.523 0 10 4.477 0 10 0a9.967 9.967 0 0 1 6.967 2.826l-1.413 1.416A8 8 0 1 0 10 18Z\"></path><path d=\"M11.978 12.095a.5.5 0 0 1-.695.013l-1.984-1.849-4.138 4.084a6.506 6.506 0 0 1-1.114-1.724l4.84-4.82a.5.5 0 0 1 .694-.011l1.994 1.858 6.855-6.87a.5.5 0 0 1 .704-.004l.714.701a.5.5 0 0 1 .004.71l-7.874 7.912Z\"></path></svg></div></div><div class=\"instrumentListItem__info\" bis_skin_checked=\"1\"><span class=\"instrumentListItem__name\">ASML</span><span class=\"instrumentListItem__priceRow\"><span class=\"tag instrumentListItem__sharesTag\"><svg viewBox=\"0 0 6 6\" class=\"closeTiny instrumentListItem__sharesIcon\"><path d=\"M5.1 0.1L5.9 0.9C6 1 6 1.1 5.9 1.2L4.1 3 5.9 4.8C6 4.9 6 5 5.9 5.1L5.1 5.9C5 6 4.9 6 4.8 5.9L3 4.1 1.2 5.9C1.1 6 1 6 0.9 5.9L0.1 5.1C0 5 0 4.9 0.1 4.8L1.9 3 0.1 1.2C0 1.1 0 1 0.1 0.9L0.9 0.1C1 0 1.1 0 1.2 0.1L3 1.9 4.8 0.1C4.9 0 5 0 5.1 0.1Z\"></path></svg>0.462246</span><span class=\"instrumentListItem__currentPrice\">548.50&nbsp;\u20ac</span><!----></span><!----></div><span class=\"trPerformanceMeter -positive performance instrumentListItem__performance\"><svg class=\"trTrendArrow -xsmall -positive trPerformanceMeter__arrow\" viewBox=\"0 0 16 16\"><path d=\"M6.23784 1.30751C6.99212 -0.0985939 9.00843 -0.0985962 9.76271 1.3075L15.6196 12.2257C16.3343 13.5581 15.3691 15.1711 13.8571 15.1711H2.14341C0.631443 15.1711 -0.333754 13.5581 0.38097 12.2257L6.23784 1.30751Z\"></path></svg><!----><data class=\"performance__relative\" value=\"0.25806327805955037\">25.81&nbsp;%</data></span></div></li><li id=\"US8825081040\"><div class=\"-clickable instrumentListItem\" role=\"button\" tabindex=\"0\" lazy-load=\"false\" bis_skin_checked=\"1\"><div class=\"instrumentListItem__logo\" bis_skin_checked=\"1\"><div class=\"instrumentIcon\" bis_skin_checked=\"1\"><img src=\"https://assets.traderepublic.com/img/logos/US8825081040/v2/light.min.svg\" alt=\"\" class=\"instrumentIcon__image\" style=\"\"><svg class=\"trIconPlaceholderStock trInstrumentPlaceholder -small instrumentIcon__defaultImage\" viewBox=\"0 0 20 20\" style=\"display: none;\"><path d=\"M10 18a8 8 0 0 0 7.687-10.224l1.566-1.574A9.97 9.97 0 0 1 20 10c0 5.523-4.477 10-10 10S0 15.523 0 10 4.477 0 10 0a9.967 9.967 0 0 1 6.967 2.826l-1.413 1.416A8 8 0 1 0 10 18Z\"></path><path d=\"M11.978 12.095a.5.5 0 0 1-.695.013l-1.984-1.849-4.138 4.084a6.506 6.506 0 0 1-1.114-1.724l4.84-4.82a.5.5 0 0 1 .694-.011l1.994 1.858 6.855-6.87a.5.5 0 0 1 .704-.004l.714.701a.5.5 0 0 1 .004.71l-7.874 7.912Z\"></path></svg></div></div><div class=\"instrumentListItem__info\" bis_skin_checked=\"1\"><span class=\"instrumentListItem__name\">Texas Instruments</span><span class=\"instrumentListItem__priceRow\"><span class=\"tag instrumentListItem__sharesTag\"><svg viewBox=\"0 0 6 6\" class=\"closeTiny instrumentListItem__sharesIcon\"><path d=\"M5.1 0.1L5.9 0.9C6 1 6 1.1 5.9 1.2L4.1 3 5.9 4.8C6 4.9 6 5 5.9 5.1L5.1 5.9C5 6 4.9 6 4.8 5.9L3 4.1 1.2 5.9C1.1 6 1 6 0.9 5.9L0.1 5.1C0 5 0 4.9 0.1 4.8L1.9 3 0.1 1.2C0 1.1 0 1 0.1 0.9L0.9 0.1C1 0 1.1 0 1.2 0.1L3 1.9 4.8 0.1C4.9 0 5 0 5.1 0.1Z\"></path></svg>1.563202</span><span class=\"instrumentListItem__currentPrice\">356.41&nbsp;\u20ac</span><!----></span><!----></div><span class=\"trPerformanceMeter -positive performance instrumentListItem__performance\"><svg class=\"trTrendArrow -xsmall -positive trPerformanceMeter__arrow\" viewBox=\"0 0 16 16\"><path d=\"M6.23784 1.30751C6.99212 -0.0985939 9.00843 -0.0985962 9.76271 1.3075L15.6196 12.2257C16.3343 13.5581 15.3691 15.1711 13.8571 15.1711H2.14341C0.631443 15.1711 -0.333754 13.5581 0.38097 12.2257L6.23784 1.30751Z\"></path></svg><!----><data class=\"performance__relative\" value=\"0.41437451148248783\">41.44&nbsp;%</data></span></div></li><li id=\"US67066G1040\"><div class=\"-clickable instrumentListItem\" role=\"button\" tabindex=\"0\" lazy-load=\"false\" bis_skin_checked=\"1\"><div class=\"instrumentListItem__logo\" bis_skin_checked=\"1\"><div class=\"instrumentIcon\" bis_skin_checked=\"1\"><img src=\"https://assets.traderepublic.com/img/logos/US67066G1040/v2/light.min.svg\" alt=\"\" class=\"instrumentIcon__image\" style=\"\"><svg class=\"trIconPlaceholderStock trInstrumentPlaceholder -small instrumentIcon__defaultImage\" viewBox=\"0 0 20 20\" style=\"display: none;\"><path d=\"M10 18a8 8 0 0 0 7.687-10.224l1.566-1.574A9.97 9.97 0 0 1 20 10c0 5.523-4.477 10-10 10S0 15.523 0 10 4.477 0 10 0a9.967 9.967 0 0 1 6.967 2.826l-1.413 1.416A8 8 0 1 0 10 18Z\"></path><path d=\"M11.978 12.095a.5.5 0 0 1-.695.013l-1.984-1.849-4.138 4.084a6.506 6.506 0 0 1-1.114-1.724l4.84-4.82a.5.5 0 0 1 .694-.011l1.994 1.858 6.855-6.87a.5.5 0 0 1 .704-.004l.714.701a.5.5 0 0 1 .004.71l-7.874 7.912Z\"></path></svg></div></div><div class=\"instrumentListItem__info\" bis_skin_checked=\"1\"><span class=\"instrumentListItem__name\">NVIDIA</span><span class=\"instrumentListItem__priceRow\"><span class=\"tag instrumentListItem__sharesTag\"><svg viewBox=\"0 0 6 6\" class=\"closeTiny instrumentListItem__sharesIcon\"><path d=\"M5.1 0.1L5.9 0.9C6 1 6 1.1 5.9 1.2L4.1 3 5.9 4.8C6 4.9 6 5 5.9 5.1L5.1 5.9C5 6 4.9 6 4.8 5.9L3 4.1 1.2 5.9C1.1 6 1 6 0.9 5.9L0.1 5.1C0 5 0 4.9 0.1 4.8L1.9 3 0.1 1.2C0 1.1 0 1 0.1 0.9L0.9 0.1C1 0 1.1 0 1.2 0.1L3 1.9 4.8 0.1C4.9 0 5 0 5.1 0.1Z\"></path></svg>1.666991</span><span class=\"instrumentListItem__currentPrice\">304.36&nbsp;\u20ac</span><!----></span><!----></div><span class=\"trPerformanceMeter -positive performance instrumentListItem__performance\"><svg class=\"trTrendArrow -xsmall -positive trPerformanceMeter__arrow\" viewBox=\"0 0 16 16\"><path d=\"M6.23784 1.30751C6.99212 -0.0985939 9.00843 -0.0985962 9.76271 1.3075L15.6196 12.2257C16.3343 13.5581 15.3691 15.1711 13.8571 15.1711H2.14341C0.631443 15.1711 -0.333754 13.5581 0.38097 12.2257L6.23784 1.30751Z\"></path></svg><!----><data class=\"performance__relative\" value=\"0.0988627390559097\">9.89&nbsp;%</data></span></div></li><li id=\"US5324571083\"><div class=\"-clickable instrumentListItem\" role=\"button\" tabindex=\"0\" lazy-load=\"false\" bis_skin_checked=\"1\"><div class=\"instrumentListItem__logo\" bis_skin_checked=\"1\"><div class=\"instrumentIcon\" bis_skin_checked=\"1\"><img src=\"https://assets.traderepublic.com/img/logos/US5324571083/v2/light.min.svg\" alt=\"\" class=\"instrumentIcon__image\" style=\"\"><svg class=\"trIconPlaceholderStock trInstrumentPlaceholder -small instrumentIcon__defaultImage\" viewBox=\"0 0 20 20\" style=\"display: none;\"><path d=\"M10 18a8 8 0 0 0 7.687-10.224l1.566-1.574A9.97 9.97 0 0 1 20 10c0 5.523-4.477 10-10 10S0 15.523 0 10 4.477 0 10 0a9.967 9.967 0 0 1 6.967 2.826l-1.413 1.416A8 8 0 1 0 10 18Z\"></path><path d=\"M11.978 12.095a.5.5 0 0 1-.695.013l-1.984-1.849-4.138 4.084a6.506 6.506 0 0 1-1.114-1.724l4.84-4.82a.5.5 0 0 1 .694-.011l1.994 1.858 6.855-6.87a.5.5 0 0 1 .704-.004l.714.701a.5.5 0 0 1 .004.71l-7.874 7.912Z\"></path></svg></div></div><div class=\"instrumentListItem__info\" bis_skin_checked=\"1\"><span class=\"instrumentListItem__name\">Eli Lilly &amp; Co</span><span class=\"instrumentListItem__priceRow\"><span class=\"tag instrumentListItem__sharesTag\"><svg viewBox=\"0 0 6 6\" class=\"closeTiny instrumentListItem__sharesIcon\"><path d=\"M5.1 0.1L5.9 0.9C6 1 6 1.1 5.9 1.2L4.1 3 5.9 4.8C6 4.9 6 5 5.9 5.1L5.1 5.9C5 6 4.9 6 4.8 5.9L3 4.1 1.2 5.9C1.1 6 1 6 0.9 5.9L0.1 5.1C0 5 0 4.9 0.1 4.8L1.9 3 0.1 1.2C0 1.1 0 1 0.1 0.9L0.9 0.1C1 0 1.1 0 1.2 0.1L3 1.9 4.8 0.1C4.9 0 5 0 5.1 0.1Z\"></path></svg>0.367812</span><span class=\"instrumentListItem__currentPrice\">274.39&nbsp;\u20ac</span><!----></span><!----></div><span class=\"trPerformanceMeter -negative performance instrumentListItem__performance\"><svg class=\"trTrendArrow -xsmall -negative trPerformanceMeter__arrow\" viewBox=\"0 0 16 16\"><path d=\"M6.23784 1.30751C6.99212 -0.0985939 9.00843 -0.0985962 9.76271 1.3075L15.6196 12.2257C16.3343 13.5581 15.3691 15.1711 13.8571 15.1711H2.14341C0.631443 15.1711 -0.333754 13.5581 0.38097 12.2257L6.23784 1.30751Z\"></path></svg><!----><data class=\"performance__relative\" value=\"0.09033464710471563\">9.03&nbsp;%</data></span></div></li><li id=\"US00724F1012\"><div class=\"-clickable instrumentListItem\" role=\"button\" tabindex=\"0\" lazy-load=\"false\" bis_skin_checked=\"1\"><div class=\"instrumentListItem__logo\" bis_skin_checked=\"1\"><div class=\"instrumentIcon\" bis_skin_checked=\"1\"><img src=\"https://assets.traderepublic.com/img/logos/US00724F1012/v2/light.min.svg\" alt=\"\" class=\"instrumentIcon__image\" style=\"\"><svg class=\"trIconPlaceholderStock trInstrumentPlaceholder -small instrumentIcon__defaultImage\" viewBox=\"0 0 20 20\" style=\"display: none;\"><path d=\"M10 18a8 8 0 0 0 7.687-10.224l1.566-1.574A9.97 9.97 0 0 1 20 10c0 5.523-4.477 10-10 10S0 15.523 0 10 4.477 0 10 0a9.967 9.967 0 0 1 6.967 2.826l-1.413 1.416A8 8 0 1 0 10 18Z\"></path><path d=\"M11.978 12.095a.5.5 0 0 1-.695.013l-1.984-1.849-4.138 4.084a6.506 6.506 0 0 1-1.114-1.724l4.84-4.82a.5.5 0 0 1 .694-.011l1.994 1.858 6.855-6.87a.5.5 0 0 1 .704-.004l.714.701a.5.5 0 0 1 .004.71l-7.874 7.912Z\"></path></svg></div></div><div class=\"instrumentListItem__info\" bis_skin_checked=\"1\"><span class=\"instrumentListItem__name\">Adobe</span><span class=\"instrumentListItem__priceRow\"><span class=\"tag instrumentListItem__sharesTag\"><svg viewBox=\"0 0 6 6\" class=\"closeTiny instrumentListItem__sharesIcon\"><path d=\"M5.1 0.1L5.9 0.9C6 1 6 1.1 5.9 1.2L4.1 3 5.9 4.8C6 4.9 6 5 5.9 5.1L5.1 5.9C5 6 4.9 6 4.8 5.9L3 4.1 1.2 5.9C1.1 6 1 6 0.9 5.9L0.1 5.1C0 5 0 4.9 0.1 4.8L1.9 3 0.1 1.2C0 1.1 0 1 0.1 0.9L0.9 0.1C1 0 1.1 0 1.2 0.1L3 1.9 4.8 0.1C4.9 0 5 0 5.1 0.1Z\"></path></svg>1.148623</span><span class=\"instrumentListItem__currentPrice\">238.22&nbsp;\u20ac</span><!----></span><!----></div><span class=\"trPerformanceMeter -negative performance instrumentListItem__performance\"><svg class=\"trTrendArrow -xsmall -negative trPerformanceMeter__arrow\" viewBox=\"0 0 16 16\"><path d=\"M6.23784 1.30751C6.99212 -0.0985939 9.00843 -0.0985962 9.76271 1.3075L15.6196 12.2257C16.3343 13.5581 15.3691 15.1711 13.8571 15.1711H2.14341C0.631443 15.1711 -0.333754 13.5581 0.38097 12.2257L6.23784 1.30751Z\"></path></svg><!----><data class=\"performance__relative\" value=\"0.30137770741401954\">30.14&nbsp;%</data></span></div></li><li id=\"US75886F1075\"><div class=\"-clickable instrumentListItem\" role=\"button\" tabindex=\"0\" lazy-load=\"false\" bis_skin_checked=\"1\"><div class=\"instrumentListItem__logo\" bis_skin_checked=\"1\"><div class=\"instrumentIcon\" bis_skin_checked=\"1\"><img src=\"https://assets.traderepublic.com/img/logos/US75886F1075/v2/light.min.svg\" alt=\"\" class=\"instrumentIcon__image\" style=\"\"><svg class=\"trIconPlaceholderStock trInstrumentPlaceholder -small instrumentIcon__defaultImage\" viewBox=\"0 0 20 20\" style=\"display: none;\"><path d=\"M10 18a8 8 0 0 0 7.687-10.224l1.566-1.574A9.97 9.97 0 0 1 20 10c0 5.523-4.477 10-10 10S0 15.523 0 10 4.477 0 10 0a9.967 9.967 0 0 1 6.967 2.826l-1.413 1.416A8 8 0 1 0 10 18Z\"></path><path d=\"M11.978 12.095a.5.5 0 0 1-.695.013l-1.984-1.849-4.138 4.084a6.506 6.506 0 0 1-1.114-1.724l4.84-4.82a.5.5 0 0 1 .694-.011l1.994 1.858 6.855-6.87a.5.5 0 0 1 .704-.004l.714.701a.5.5 0 0 1 .004.71l-7.874 7.912Z\"></path></svg></div></div><div class=\"instrumentListItem__info\" bis_skin_checked=\"1\"><span class=\"instrumentListItem__name\">Regeneron Pharmaceuticals</span><span class=\"instrumentListItem__priceRow\"><span class=\"tag instrumentListItem__sharesTag\"><svg viewBox=\"0 0 6 6\" class=\"closeTiny instrumentListItem__sharesIcon\"><path d=\"M5.1 0.1L5.9 0.9C6 1 6 1.1 5.9 1.2L4.1 3 5.9 4.8C6 4.9 6 5 5.9 5.1L5.1 5.9C5 6 4.9 6 4.8 5.9L3 4.1 1.2 5.9C1.1 6 1 6 0.9 5.9L0.1 5.1C0 5 0 4.9 0.1 4.8L1.9 3 0.1 1.2C0 1.1 0 1 0.1 0.9L0.9 0.1C1 0 1.1 0 1.2 0.1L3 1.9 4.8 0.1C4.9 0 5 0 5.1 0.1Z\"></path></svg>0.336639</span><span class=\"instrumentListItem__currentPrice\">209.73&nbsp;\u20ac</span><!----></span><!----></div><span class=\"trPerformanceMeter -negative performance instrumentListItem__performance\"><svg class=\"trTrendArrow -xsmall -negative trPerformanceMeter__arrow\" viewBox=\"0 0 16 16\"><path d=\"M6.23784 1.30751C6.99212 -0.0985939 9.00843 -0.0985962 9.76271 1.3075L15.6196 12.2257C16.3343 13.5581 15.3691 15.1711 13.8571 15.1711H2.14341C0.631443 15.1711 -0.333754 13.5581 0.38097 12.2257L6.23784 1.30751Z\"></path></svg><!----><data class=\"performance__relative\" value=\"0.010792052293692083\">1.08&nbsp;%</data></span></div></li><li id=\"FR0000121972\"><div class=\"-clickable instrumentListItem\" role=\"button\" tabindex=\"0\" lazy-load=\"false\" bis_skin_checked=\"1\"><div class=\"instrumentListItem__logo\" bis_skin_checked=\"1\"><div class=\"instrumentIcon\" bis_skin_checked=\"1\"><img src=\"https://assets.traderepublic.com/img/logos/FR0000121972/v2/light.min.svg\" alt=\"\" class=\"instrumentIcon__image\" style=\"\"><svg class=\"trIconPlaceholderStock trInstrumentPlaceholder -small instrumentIcon__defaultImage\" viewBox=\"0 0 20 20\" style=\"display: none;\"><path d=\"M10 18a8 8 0 0 0 7.687-10.224l1.566-1.574A9.97 9.97 0 0 1 20 10c0 5.523-4.477 10-10 10S0 15.523 0 10 4.477 0 10 0a9.967 9.967 0 0 1 6.967 2.826l-1.413 1.416A8 8 0 1 0 10 18Z\"></path><path d=\"M11.978 12.095a.5.5 0 0 1-.695.013l-1.984-1.849-4.138 4.084a6.506 6.506 0 0 1-1.114-1.724l4.84-4.82a.5.5 0 0 1 .694-.011l1.994 1.858 6.855-6.87a.5.5 0 0 1 .704-.004l.714.701a.5.5 0 0 1 .004.71l-7.874 7.912Z\"></path></svg></div></div><div class=\"instrumentListItem__info\" bis_skin_checked=\"1\"><span class=\"instrumentListItem__name\">Schneider Electric</span><span class=\"instrumentListItem__priceRow\"><span class=\"tag instrumentListItem__sharesTag\"><svg viewBox=\"0 0 6 6\" class=\"closeTiny instrumentListItem__sharesIcon\"><path d=\"M5.1 0.1L5.9 0.9C6 1 6 1.1 5.9 1.2L4.1 3 5.9 4.8C6 4.9 6 5 5.9 5.1L5.1 5.9C5 6 4.9 6 4.8 5.9L3 4.1 1.2 5.9C1.1 6 1 6 0.9 5.9L0.1 5.1C0 5 0 4.9 0.1 4.8L1.9 3 0.1 1.2C0 1.1 0 1 0.1 0.9L0.9 0.1C1 0 1.1 0 1.2 0.1L3 1.9 4.8 0.1C4.9 0 5 0 5.1 0.1Z\"></path></svg>0.607525</span><span class=\"instrumentListItem__currentPrice\">164.43&nbsp;\u20ac</span><!----></span><!----></div><span class=\"trPerformanceMeter -positive performance instrumentListItem__performance\"><svg class=\"trTrendArrow -xsmall -positive trPerformanceMeter__arrow\" viewBox=\"0 0 16 16\"><path d=\"M6.23784 1.30751C6.99212 -0.0985939 9.00843 -0.0985962 9.76271 1.3075L15.6196 12.2257C16.3343 13.5581 15.3691 15.1711 13.8571 15.1711H2.14341C0.631443 15.1711 -0.333754 13.5581 0.38097 12.2257L6.23784 1.30751Z\"></path></svg><!----><data class=\"performance__relative\" value=\"0.1533885289299589\">15.34&nbsp;%</data></span></div></li><li id=\"US79466L3024\"><div class=\"-clickable instrumentListItem\" role=\"button\" tabindex=\"0\" lazy-load=\"false\" bis_skin_checked=\"1\"><div class=\"instrumentListItem__logo\" bis_skin_checked=\"1\"><div class=\"instrumentIcon\" bis_skin_checked=\"1\"><img src=\"https://assets.traderepublic.com/img/logos/US79466L3024/v2/light.min.svg\" alt=\"\" class=\"instrumentIcon__image\" style=\"\"><svg class=\"trIconPlaceholderStock trInstrumentPlaceholder -small instrumentIcon__defaultImage\" viewBox=\"0 0 20 20\" style=\"display: none;\"><path d=\"M10 18a8 8 0 0 0 7.687-10.224l1.566-1.574A9.97 9.97 0 0 1 20 10c0 5.523-4.477 10-10 10S0 15.523 0 10 4.477 0 10 0a9.967 9.967 0 0 1 6.967 2.826l-1.413 1.416A8 8 0 1 0 10 18Z\"></path><path d=\"M11.978 12.095a.5.5 0 0 1-.695.013l-1.984-1.849-4.138 4.084a6.506 6.506 0 0 1-1.114-1.724l4.84-4.82a.5.5 0 0 1 .694-.011l1.994 1.858 6.855-6.87a.5.5 0 0 1 .704-.004l.714.701a.5.5 0 0 1 .004.71l-7.874 7.912Z\"></path></svg></div></div><div class=\"instrumentListItem__info\" bis_skin_checked=\"1\"><span class=\"instrumentListItem__name\">Salesforce</span><span class=\"instrumentListItem__priceRow\"><span class=\"tag instrumentListItem__sharesTag\"><svg viewBox=\"0 0 6 6\" class=\"closeTiny instrumentListItem__sharesIcon\"><path d=\"M5.1 0.1L5.9 0.9C6 1 6 1.1 5.9 1.2L4.1 3 5.9 4.8C6 4.9 6 5 5.9 5.1L5.1 5.9C5 6 4.9 6 4.8 5.9L3 4.1 1.2 5.9C1.1 6 1 6 0.9 5.9L0.1 5.1C0 5 0 4.9 0.1 4.8L1.9 3 0.1 1.2C0 1.1 0 1 0.1 0.9L0.9 0.1C1 0 1.1 0 1.2 0.1L3 1.9 4.8 0.1C4.9 0 5 0 5.1 0.1Z\"></path></svg>0.982471</span><span class=\"instrumentListItem__currentPrice\">151.95&nbsp;\u20ac</span><!----></span><!----></div><span class=\"trPerformanceMeter -negative performance instrumentListItem__performance\"><svg class=\"trTrendArrow -xsmall -negative trPerformanceMeter__arrow\" viewBox=\"0 0 16 16\"><path d=\"M6.23784 1.30751C6.99212 -0.0985939 9.00843 -0.0985962 9.76271 1.3075L15.6196 12.2257C16.3343 13.5581 15.3691 15.1711 13.8571 15.1711H2.14341C0.631443 15.1711 -0.333754 13.5581 0.38097 12.2257L6.23784 1.30751Z\"></path></svg><!----><data class=\"performance__relative\" value=\"0.27970741199050103\">27.97&nbsp;%</data></span></div></li><li id=\"US90364P1057\"><div class=\"-clickable instrumentListItem\" role=\"button\" tabindex=\"0\" lazy-load=\"false\" bis_skin_checked=\"1\"><div class=\"instrumentListItem__logo\" bis_skin_checked=\"1\"><div class=\"instrumentIcon\" bis_skin_checked=\"1\"><img src=\"https://assets.traderepublic.com/img/logos/US90364P1057/v2/light.min.svg\" alt=\"\" class=\"instrumentIcon__image\" style=\"\"><svg class=\"trIconPlaceholderStock trInstrumentPlaceholder -small instrumentIcon__defaultImage\" viewBox=\"0 0 20 20\" style=\"display: none;\"><path d=\"M10 18a8 8 0 0 0 7.687-10.224l1.566-1.574A9.97 9.97 0 0 1 20 10c0 5.523-4.477 10-10 10S0 15.523 0 10 4.477 0 10 0a9.967 9.967 0 0 1 6.967 2.826l-1.413 1.416A8 8 0 1 0 10 18Z\"></path><path d=\"M11.978 12.095a.5.5 0 0 1-.695.013l-1.984-1.849-4.138 4.084a6.506 6.506 0 0 1-1.114-1.724l4.84-4.82a.5.5 0 0 1 .694-.011l1.994 1.858 6.855-6.87a.5.5 0 0 1 .704-.004l.714.701a.5.5 0 0 1 .004.71l-7.874 7.912Z\"></path></svg></div></div><div class=\"instrumentListItem__info\" bis_skin_checked=\"1\"><span class=\"instrumentListItem__name\">UiPath </span><span class=\"instrumentListItem__priceRow\"><span class=\"tag instrumentListItem__sharesTag\"><svg viewBox=\"0 0 6 6\" class=\"closeTiny instrumentListItem__sharesIcon\"><path d=\"M5.1 0.1L5.9 0.9C6 1 6 1.1 5.9 1.2L4.1 3 5.9 4.8C6 4.9 6 5 5.9 5.1L5.1 5.9C5 6 4.9 6 4.8 5.9L3 4.1 1.2 5.9C1.1 6 1 6 0.9 5.9L0.1 5.1C0 5 0 4.9 0.1 4.8L1.9 3 0.1 1.2C0 1.1 0 1 0.1 0.9L0.9 0.1C1 0 1.1 0 1.2 0.1L3 1.9 4.8 0.1C4.9 0 5 0 5.1 0.1Z\"></path></svg>16.53989</span><span class=\"instrumentListItem__currentPrice\">148.89&nbsp;\u20ac</span><!----></span><!----></div><span class=\"trPerformanceMeter -negative performance instrumentListItem__performance\"><svg class=\"trTrendArrow -xsmall -negative trPerformanceMeter__arrow\" viewBox=\"0 0 16 16\"><path d=\"M6.23784 1.30751C6.99212 -0.0985939 9.00843 -0.0985962 9.76271 1.3075L15.6196 12.2257C16.3343 13.5581 15.3691 15.1711 13.8571 15.1711H2.14341C0.631443 15.1711 -0.333754 13.5581 0.38097 12.2257L6.23784 1.30751Z\"></path></svg><!----><data class=\"performance__relative\" value=\"0.2666574340341986\">26.67&nbsp;%</data></span></div></li><li id=\"US23804L1035\"><div class=\"-clickable instrumentListItem\" role=\"button\" tabindex=\"0\" lazy-load=\"false\" bis_skin_checked=\"1\"><div class=\"instrumentListItem__logo\" bis_skin_checked=\"1\"><div class=\"instrumentIcon\" bis_skin_checked=\"1\"><img src=\"https://assets.traderepublic.com/img/logos/US23804L1035/v2/light.min.svg\" alt=\"\" class=\"instrumentIcon__image\" style=\"\"><svg class=\"trIconPlaceholderStock trInstrumentPlaceholder -small instrumentIcon__defaultImage\" viewBox=\"0 0 20 20\" style=\"display: none;\"><path d=\"M10 18a8 8 0 0 0 7.687-10.224l1.566-1.574A9.97 9.97 0 0 1 20 10c0 5.523-4.477 10-10 10S0 15.523 0 10 4.477 0 10 0a9.967 9.967 0 0 1 6.967 2.826l-1.413 1.416A8 8 0 1 0 10 18Z\"></path><path d=\"M11.978 12.095a.5.5 0 0 1-.695.013l-1.984-1.849-4.138 4.084a6.506 6.506 0 0 1-1.114-1.724l4.84-4.82a.5.5 0 0 1 .694-.011l1.994 1.858 6.855-6.87a.5.5 0 0 1 .704-.004l.714.701a.5.5 0 0 1 .004.71l-7.874 7.912Z\"></path></svg></div></div><div class=\"instrumentListItem__info\" bis_skin_checked=\"1\"><span class=\"instrumentListItem__name\">Datadog (A)</span><span class=\"instrumentListItem__priceRow\"><span class=\"tag instrumentListItem__sharesTag\"><svg viewBox=\"0 0 6 6\" class=\"closeTiny instrumentListItem__sharesIcon\"><path d=\"M5.1 0.1L5.9 0.9C6 1 6 1.1 5.9 1.2L4.1 3 5.9 4.8C6 4.9 6 5 5.9 5.1L5.1 5.9C5 6 4.9 6 4.8 5.9L3 4.1 1.2 5.9C1.1 6 1 6 0.9 5.9L0.1 5.1C0 5 0 4.9 0.1 4.8L1.9 3 0.1 1.2C0 1.1 0 1 0.1 0.9L0.9 0.1C1 0 1.1 0 1.2 0.1L3 1.9 4.8 0.1C4.9 0 5 0 5.1 0.1Z\"></path></svg>1.181368</span><span class=\"instrumentListItem__currentPrice\">132.08&nbsp;\u20ac</span><!----></span><!----></div><span class=\"trPerformanceMeter -negative performance instrumentListItem__performance\"><svg class=\"trTrendArrow -xsmall -negative trPerformanceMeter__arrow\" viewBox=\"0 0 16 16\"><path d=\"M6.23784 1.30751C6.99212 -0.0985939 9.00843 -0.0985962 9.76271 1.3075L15.6196 12.2257C16.3343 13.5581 15.3691 15.1711 13.8571 15.1711H2.14341C0.631443 15.1711 -0.333754 13.5581 0.38097 12.2257L6.23784 1.30751Z\"></path></svg><!----><data class=\"performance__relative\" value=\"0.0069381095050590055\">0.69&nbsp;%</data></span></div></li><li id=\"US11135F1012\"><div class=\"-clickable instrumentListItem\" role=\"button\" tabindex=\"0\" lazy-load=\"false\" bis_skin_checked=\"1\"><div class=\"instrumentListItem__logo\" bis_skin_checked=\"1\"><div class=\"instrumentIcon\" bis_skin_checked=\"1\"><img src=\"https://assets.traderepublic.com/img/logos/US11135F1012/v2/light.min.svg\" alt=\"\" class=\"instrumentIcon__image\" style=\"\"><svg class=\"trIconPlaceholderStock trInstrumentPlaceholder -small instrumentIcon__defaultImage\" viewBox=\"0 0 20 20\" style=\"display: none;\"><path d=\"M10 18a8 8 0 0 0 7.687-10.224l1.566-1.574A9.97 9.97 0 0 1 20 10c0 5.523-4.477 10-10 10S0 15.523 0 10 4.477 0 10 0a9.967 9.967 0 0 1 6.967 2.826l-1.413 1.416A8 8 0 1 0 10 18Z\"></path><path d=\"M11.978 12.095a.5.5 0 0 1-.695.013l-1.984-1.849-4.138 4.084a6.506 6.506 0 0 1-1.114-1.724l4.84-4.82a.5.5 0 0 1 .694-.011l1.994 1.858 6.855-6.87a.5.5 0 0 1 .704-.004l.714.701a.5.5 0 0 1 .004.71l-7.874 7.912Z\"></path></svg></div></div><div class=\"instrumentListItem__info\" bis_skin_checked=\"1\"><span class=\"instrumentListItem__name\">Broadcom</span><span class=\"instrumentListItem__priceRow\"><span class=\"tag instrumentListItem__sharesTag\"><svg viewBox=\"0 0 6 6\" class=\"closeTiny instrumentListItem__sharesIcon\"><path d=\"M5.1 0.1L5.9 0.9C6 1 6 1.1 5.9 1.2L4.1 3 5.9 4.8C6 4.9 6 5 5.9 5.1L5.1 5.9C5 6 4.9 6 4.8 5.9L3 4.1 1.2 5.9C1.1 6 1 6 0.9 5.9L0.1 5.1C0 5 0 4.9 0.1 4.8L1.9 3 0.1 1.2C0 1.1 0 1 0.1 0.9L0.9 0.1C1 0 1.1 0 1.2 0.1L3 1.9 4.8 0.1C4.9 0 5 0 5.1 0.1Z\"></path></svg>0.369908</span><span class=\"instrumentListItem__currentPrice\">126.80&nbsp;\u20ac</span><!----></span><!----></div><span class=\"trPerformanceMeter -positive performance instrumentListItem__performance\"><svg class=\"trTrendArrow -xsmall -positive trPerformanceMeter__arrow\" viewBox=\"0 0 16 16\"><path d=\"M6.23784 1.30751C6.99212 -0.0985939 9.00843 -0.0985962 9.76271 1.3075L15.6196 12.2257C16.3343 13.5581 15.3691 15.1711 13.8571 15.1711H2.14341C0.631443 15.1711 -0.333754 13.5581 0.38097 12.2257L6.23784 1.30751Z\"></path></svg><!----><data class=\"performance__relative\" value=\"0.13218714247590965\">13.22&nbsp;%</data></span></div></li><li id=\"US0404132054\"><div class=\"-clickable instrumentListItem\" role=\"button\" tabindex=\"0\" lazy-load=\"false\" bis_skin_checked=\"1\"><div class=\"instrumentListItem__logo\" bis_skin_checked=\"1\"><div class=\"instrumentIcon\" bis_skin_checked=\"1\"><img src=\"https://assets.traderepublic.com/img/logos/US0404132054/v2/light.min.svg\" alt=\"\" class=\"instrumentIcon__image\" style=\"\"><svg class=\"trIconPlaceholderStock trInstrumentPlaceholder -small instrumentIcon__defaultImage\" viewBox=\"0 0 20 20\" style=\"display: none;\"><path d=\"M10 18a8 8 0 0 0 7.687-10.224l1.566-1.574A9.97 9.97 0 0 1 20 10c0 5.523-4.477 10-10 10S0 15.523 0 10 4.477 0 10 0a9.967 9.967 0 0 1 6.967 2.826l-1.413 1.416A8 8 0 1 0 10 18Z\"></path><path d=\"M11.978 12.095a.5.5 0 0 1-.695.013l-1.984-1.849-4.138 4.084a6.506 6.506 0 0 1-1.114-1.724l4.84-4.82a.5.5 0 0 1 .694-.011l1.994 1.858 6.855-6.87a.5.5 0 0 1 .704-.004l.714.701a.5.5 0 0 1 .004.71l-7.874 7.912Z\"></path></svg></div></div><div class=\"instrumentListItem__info\" bis_skin_checked=\"1\"><span class=\"instrumentListItem__name\">Arista Networks</span><span class=\"instrumentListItem__priceRow\"><span class=\"tag instrumentListItem__sharesTag\"><svg viewBox=\"0 0 6 6\" class=\"closeTiny instrumentListItem__sharesIcon\"><path d=\"M5.1 0.1L5.9 0.9C6 1 6 1.1 5.9 1.2L4.1 3 5.9 4.8C6 4.9 6 5 5.9 5.1L5.1 5.9C5 6 4.9 6 4.8 5.9L3 4.1 1.2 5.9C1.1 6 1 6 0.9 5.9L0.1 5.1C0 5 0 4.9 0.1 4.8L1.9 3 0.1 1.2C0 1.1 0 1 0.1 0.9L0.9 0.1C1 0 1.1 0 1.2 0.1L3 1.9 4.8 0.1C4.9 0 5 0 5.1 0.1Z\"></path></svg>0.817022</span><span class=\"instrumentListItem__currentPrice\">116.56&nbsp;\u20ac</span><!----></span><!----></div><span class=\"trPerformanceMeter -positive performance instrumentListItem__performance\"><svg class=\"trTrendArrow -xsmall -positive trPerformanceMeter__arrow\" viewBox=\"0 0 16 16\"><path d=\"M6.23784 1.30751C6.99212 -0.0985939 9.00843 -0.0985962 9.76271 1.3075L15.6196 12.2257C16.3343 13.5581 15.3691 15.1711 13.8571 15.1711H2.14341C0.631443 15.1711 -0.333754 13.5581 0.38097 12.2257L6.23784 1.30751Z\"></path></svg><!----><data class=\"performance__relative\" value=\"0.2945553539019963\">29.46&nbsp;%</data></span></div></li><li id=\"US6792951054\"><div class=\"-clickable instrumentListItem\" role=\"button\" tabindex=\"0\" lazy-load=\"false\" bis_skin_checked=\"1\"><div class=\"instrumentListItem__logo\" bis_skin_checked=\"1\"><div class=\"instrumentIcon\" bis_skin_checked=\"1\"><img src=\"https://assets.traderepublic.com/img/logos/US6792951054/v2/light.min.svg\" alt=\"\" class=\"instrumentIcon__image\" style=\"\"><svg class=\"trIconPlaceholderStock trInstrumentPlaceholder -small instrumentIcon__defaultImage\" viewBox=\"0 0 20 20\" style=\"display: none;\"><path d=\"M10 18a8 8 0 0 0 7.687-10.224l1.566-1.574A9.97 9.97 0 0 1 20 10c0 5.523-4.477 10-10 10S0 15.523 0 10 4.477 0 10 0a9.967 9.967 0 0 1 6.967 2.826l-1.413 1.416A8 8 0 1 0 10 18Z\"></path><path d=\"M11.978 12.095a.5.5 0 0 1-.695.013l-1.984-1.849-4.138 4.084a6.506 6.506 0 0 1-1.114-1.724l4.84-4.82a.5.5 0 0 1 .694-.011l1.994 1.858 6.855-6.87a.5.5 0 0 1 .704-.004l.714.701a.5.5 0 0 1 .004.71l-7.874 7.912Z\"></path></svg></div></div><div class=\"instrumentListItem__info\" bis_skin_checked=\"1\"><span class=\"instrumentListItem__name\">Okta</span><span class=\"instrumentListItem__priceRow\"><span class=\"tag instrumentListItem__sharesTag\"><svg viewBox=\"0 0 6 6\" class=\"closeTiny instrumentListItem__sharesIcon\"><path d=\"M5.1 0.1L5.9 0.9C6 1 6 1.1 5.9 1.2L4.1 3 5.9 4.8C6 4.9 6 5 5.9 5.1L5.1 5.9C5 6 4.9 6 4.8 5.9L3 4.1 1.2 5.9C1.1 6 1 6 0.9 5.9L0.1 5.1C0 5 0 4.9 0.1 4.8L1.9 3 0.1 1.2C0 1.1 0 1 0.1 0.9L0.9 0.1C1 0 1.1 0 1.2 0.1L3 1.9 4.8 0.1C4.9 0 5 0 5.1 0.1Z\"></path></svg>1.781512</span><span class=\"instrumentListItem__currentPrice\">115.83&nbsp;\u20ac</span><!----></span><!----></div><span class=\"trPerformanceMeter -negative performance instrumentListItem__performance\"><svg class=\"trTrendArrow -xsmall -negative trPerformanceMeter__arrow\" viewBox=\"0 0 16 16\"><path d=\"M6.23784 1.30751C6.99212 -0.0985939 9.00843 -0.0985962 9.76271 1.3075L15.6196 12.2257C16.3343 13.5581 15.3691 15.1711 13.8571 15.1711H2.14341C0.631443 15.1711 -0.333754 13.5581 0.38097 12.2257L6.23784 1.30751Z\"></path></svg><!----><data class=\"performance__relative\" value=\"0.1224696096730789\">12.25&nbsp;%</data></span></div></li><li id=\"US21037T1097\"><div class=\"-clickable instrumentListItem\" role=\"button\" tabindex=\"0\" lazy-load=\"false\" bis_skin_checked=\"1\"><div class=\"instrumentListItem__logo\" bis_skin_checked=\"1\"><div class=\"instrumentIcon\" bis_skin_checked=\"1\"><img src=\"https://assets.traderepublic.com/img/logos/US21037T1097/v2/light.min.svg\" alt=\"\" class=\"instrumentIcon__image\" style=\"\"><svg class=\"trIconPlaceholderStock trInstrumentPlaceholder -small instrumentIcon__defaultImage\" viewBox=\"0 0 20 20\" style=\"display: none;\"><path d=\"M10 18a8 8 0 0 0 7.687-10.224l1.566-1.574A9.97 9.97 0 0 1 20 10c0 5.523-4.477 10-10 10S0 15.523 0 10 4.477 0 10 0a9.967 9.967 0 0 1 6.967 2.826l-1.413 1.416A8 8 0 1 0 10 18Z\"></path><path d=\"M11.978 12.095a.5.5 0 0 1-.695.013l-1.984-1.849-4.138 4.084a6.506 6.506 0 0 1-1.114-1.724l4.84-4.82a.5.5 0 0 1 .694-.011l1.994 1.858 6.855-6.87a.5.5 0 0 1 .704-.004l.714.701a.5.5 0 0 1 .004.71l-7.874 7.912Z\"></path></svg></div></div><div class=\"instrumentListItem__info\" bis_skin_checked=\"1\"><span class=\"instrumentListItem__name\">Constellation Energy</span><span class=\"instrumentListItem__priceRow\"><span class=\"tag instrumentListItem__sharesTag\"><svg viewBox=\"0 0 6 6\" class=\"closeTiny instrumentListItem__sharesIcon\"><path d=\"M5.1 0.1L5.9 0.9C6 1 6 1.1 5.9 1.2L4.1 3 5.9 4.8C6 4.9 6 5 5.9 5.1L5.1 5.9C5 6 4.9 6 4.8 5.9L3 4.1 1.2 5.9C1.1 6 1 6 0.9 5.9L0.1 5.1C0 5 0 4.9 0.1 4.8L1.9 3 0.1 1.2C0 1.1 0 1 0.1 0.9L0.9 0.1C1 0 1.1 0 1.2 0.1L3 1.9 4.8 0.1C4.9 0 5 0 5.1 0.1Z\"></path></svg>0.334296</span><span class=\"instrumentListItem__currentPrice\">87.27&nbsp;\u20ac</span><!----></span><!----></div><span class=\"trPerformanceMeter -negative performance instrumentListItem__performance\"><svg class=\"trTrendArrow -xsmall -negative trPerformanceMeter__arrow\" viewBox=\"0 0 16 16\"><path d=\"M6.23784 1.30751C6.99212 -0.0985939 9.00843 -0.0985962 9.76271 1.3075L15.6196 12.2257C16.3343 13.5581 15.3691 15.1711 13.8571 15.1711H2.14341C0.631443 15.1711 -0.333754 13.5581 0.38097 12.2257L6.23784 1.30751Z\"></path></svg><!----><data class=\"performance__relative\" value=\"0.030353411202213007\">3.04&nbsp;%</data></span></div></li><li id=\"GB0009895292\"><div class=\"-clickable instrumentListItem\" role=\"button\" tabindex=\"0\" lazy-load=\"false\" bis_skin_checked=\"1\"><div class=\"instrumentListItem__logo\" bis_skin_checked=\"1\"><div class=\"instrumentIcon\" bis_skin_checked=\"1\"><img src=\"https://assets.traderepublic.com/img/logos/GB0009895292/v2/light.min.svg\" alt=\"\" class=\"instrumentIcon__image\" style=\"\"><svg class=\"trIconPlaceholderStock trInstrumentPlaceholder -small instrumentIcon__defaultImage\" viewBox=\"0 0 20 20\" style=\"display: none;\"><path d=\"M10 18a8 8 0 0 0 7.687-10.224l1.566-1.574A9.97 9.97 0 0 1 20 10c0 5.523-4.477 10-10 10S0 15.523 0 10 4.477 0 10 0a9.967 9.967 0 0 1 6.967 2.826l-1.413 1.416A8 8 0 1 0 10 18Z\"></path><path d=\"M11.978 12.095a.5.5 0 0 1-.695.013l-1.984-1.849-4.138 4.084a6.506 6.506 0 0 1-1.114-1.724l4.84-4.82a.5.5 0 0 1 .694-.011l1.994 1.858 6.855-6.87a.5.5 0 0 1 .704-.004l.714.701a.5.5 0 0 1 .004.71l-7.874 7.912Z\"></path></svg></div></div><div class=\"instrumentListItem__info\" bis_skin_checked=\"1\"><span class=\"instrumentListItem__name\">AstraZeneca</span><span class=\"instrumentListItem__priceRow\"><span class=\"tag instrumentListItem__sharesTag\"><svg viewBox=\"0 0 6 6\" class=\"closeTiny instrumentListItem__sharesIcon\"><path d=\"M5.1 0.1L5.9 0.9C6 1 6 1.1 5.9 1.2L4.1 3 5.9 4.8C6 4.9 6 5 5.9 5.1L5.1 5.9C5 6 4.9 6 4.8 5.9L3 4.1 1.2 5.9C1.1 6 1 6 0.9 5.9L0.1 5.1C0 5 0 4.9 0.1 4.8L1.9 3 0.1 1.2C0 1.1 0 1 0.1 0.9L0.9 0.1C1 0 1.1 0 1.2 0.1L3 1.9 4.8 0.1C4.9 0 5 0 5.1 0.1Z\"></path></svg>0.530856</span><span class=\"instrumentListItem__currentPrice\">83.90&nbsp;\u20ac</span><!----></span><!----></div><span class=\"trPerformanceMeter -negative performance instrumentListItem__performance\"><svg class=\"trTrendArrow -xsmall -negative trPerformanceMeter__arrow\" viewBox=\"0 0 16 16\"><path d=\"M6.23784 1.30751C6.99212 -0.0985939 9.00843 -0.0985962 9.76271 1.3075L15.6196 12.2257C16.3343 13.5581 15.3691 15.1711 13.8571 15.1711H2.14341C0.631443 15.1711 -0.333754 13.5581 0.38097 12.2257L6.23784 1.30751Z\"></path></svg><!----><data class=\"performance__relative\" value=\"0.10742724444916309\">10.74&nbsp;%</data></span></div></li><li id=\"US64125C1099\"><div class=\"-clickable instrumentListItem\" role=\"button\" tabindex=\"0\" lazy-load=\"false\" bis_skin_checked=\"1\"><div class=\"instrumentListItem__logo\" bis_skin_checked=\"1\"><div class=\"instrumentIcon\" bis_skin_checked=\"1\"><img src=\"https://assets.traderepublic.com/img/logos/US64125C1099/v2/light.min.svg\" alt=\"\" class=\"instrumentIcon__image\" style=\"\"><svg class=\"trIconPlaceholderStock trInstrumentPlaceholder -small instrumentIcon__defaultImage\" viewBox=\"0 0 20 20\" style=\"display: none;\"><path d=\"M10 18a8 8 0 0 0 7.687-10.224l1.566-1.574A9.97 9.97 0 0 1 20 10c0 5.523-4.477 10-10 10S0 15.523 0 10 4.477 0 10 0a9.967 9.967 0 0 1 6.967 2.826l-1.413 1.416A8 8 0 1 0 10 18Z\"></path><path d=\"M11.978 12.095a.5.5 0 0 1-.695.013l-1.984-1.849-4.138 4.084a6.506 6.506 0 0 1-1.114-1.724l4.84-4.82a.5.5 0 0 1 .694-.011l1.994 1.858 6.855-6.87a.5.5 0 0 1 .704-.004l.714.701a.5.5 0 0 1 .004.71l-7.874 7.912Z\"></path></svg></div></div><div class=\"instrumentListItem__info\" bis_skin_checked=\"1\"><span class=\"instrumentListItem__name\">Neurocrine Biosciences</span><span class=\"instrumentListItem__priceRow\"><span class=\"tag instrumentListItem__sharesTag\"><svg viewBox=\"0 0 6 6\" class=\"closeTiny instrumentListItem__sharesIcon\"><path d=\"M5.1 0.1L5.9 0.9C6 1 6 1.1 5.9 1.2L4.1 3 5.9 4.8C6 4.9 6 5 5.9 5.1L5.1 5.9C5 6 4.9 6 4.8 5.9L3 4.1 1.2 5.9C1.1 6 1 6 0.9 5.9L0.1 5.1C0 5 0 4.9 0.1 4.8L1.9 3 0.1 1.2C0 1.1 0 1 0.1 0.9L0.9 0.1C1 0 1.1 0 1.2 0.1L3 1.9 4.8 0.1C4.9 0 5 0 5.1 0.1Z\"></path></svg>0.763826</span><span class=\"instrumentListItem__currentPrice\">82.91&nbsp;\u20ac</span><!----></span><!----></div><span class=\"trPerformanceMeter -negative performance instrumentListItem__performance\"><svg class=\"trTrendArrow -xsmall -negative trPerformanceMeter__arrow\" viewBox=\"0 0 16 16\"><path d=\"M6.23784 1.30751C6.99212 -0.0985939 9.00843 -0.0985962 9.76271 1.3075L15.6196 12.2257C16.3343 13.5581 15.3691 15.1711 13.8571 15.1711H2.14341C0.631443 15.1711 -0.333754 13.5581 0.38097 12.2257L6.23784 1.30751Z\"></path></svg><!----><data class=\"performance__relative\" value=\"0.09876625209637517\">9.88&nbsp;%</data></span></div></li><li id=\"US90353T1007\"><div class=\"-clickable instrumentListItem\" role=\"button\" tabindex=\"0\" lazy-load=\"false\" bis_skin_checked=\"1\"><div class=\"instrumentListItem__logo\" bis_skin_checked=\"1\"><div class=\"instrumentIcon\" bis_skin_checked=\"1\"><img src=\"https://assets.traderepublic.com/img/logos/US90353T1007/v2/light.min.svg\" alt=\"\" class=\"instrumentIcon__image\" style=\"\"><svg class=\"trIconPlaceholderStock trInstrumentPlaceholder -small instrumentIcon__defaultImage\" viewBox=\"0 0 20 20\" style=\"display: none;\"><path d=\"M10 18a8 8 0 0 0 7.687-10.224l1.566-1.574A9.97 9.97 0 0 1 20 10c0 5.523-4.477 10-10 10S0 15.523 0 10 4.477 0 10 0a9.967 9.967 0 0 1 6.967 2.826l-1.413 1.416A8 8 0 1 0 10 18Z\"></path><path d=\"M11.978 12.095a.5.5 0 0 1-.695.013l-1.984-1.849-4.138 4.084a6.506 6.506 0 0 1-1.114-1.724l4.84-4.82a.5.5 0 0 1 .694-.011l1.994 1.858 6.855-6.87a.5.5 0 0 1 .704-.004l.714.701a.5.5 0 0 1 .004.71l-7.874 7.912Z\"></path></svg></div></div><div class=\"instrumentListItem__info\" bis_skin_checked=\"1\"><span class=\"instrumentListItem__name\">Uber</span><span class=\"instrumentListItem__priceRow\"><span class=\"tag instrumentListItem__sharesTag\"><svg viewBox=\"0 0 6 6\" class=\"closeTiny instrumentListItem__sharesIcon\"><path d=\"M5.1 0.1L5.9 0.9C6 1 6 1.1 5.9 1.2L4.1 3 5.9 4.8C6 4.9 6 5 5.9 5.1L5.1 5.9C5 6 4.9 6 4.8 5.9L3 4.1 1.2 5.9C1.1 6 1 6 0.9 5.9L0.1 5.1C0 5 0 4.9 0.1 4.8L1.9 3 0.1 1.2C0 1.1 0 1 0.1 0.9L0.9 0.1C1 0 1.1 0 1.2 0.1L3 1.9 4.8 0.1C4.9 0 5 0 5.1 0.1Z\"></path></svg>1.01626</span><span class=\"instrumentListItem__currentPrice\">64.43&nbsp;\u20ac</span><!----></span><!----></div><span class=\"trPerformanceMeter -negative performance instrumentListItem__performance\"><svg class=\"trTrendArrow -xsmall -negative trPerformanceMeter__arrow\" viewBox=\"0 0 16 16\"><path d=\"M6.23784 1.30751C6.99212 -0.0985939 9.00843 -0.0985962 9.76271 1.3075L15.6196 12.2257C16.3343 13.5581 15.3691 15.1711 13.8571 15.1711H2.14341C0.631443 15.1711 -0.333754 13.5581 0.38097 12.2257L6.23784 1.30751Z\"></path></svg><!----><data class=\"performance__relative\" value=\"0.09252261536699884\">9.25&nbsp;%</data></span></div></li><li id=\"US69370C1009\"><div class=\"-clickable instrumentListItem\" role=\"button\" tabindex=\"0\" lazy-load=\"true\" bis_skin_checked=\"1\"><div class=\"instrumentListItem__logo\" bis_skin_checked=\"1\"><div class=\"instrumentIcon\" bis_skin_checked=\"1\"><img src=\"https://assets.traderepublic.com/img/logos/US69370C1009/v2/light.min.svg\" alt=\"\" class=\"instrumentIcon__image\" style=\"\"><svg class=\"trIconPlaceholderStock trInstrumentPlaceholder -small instrumentIcon__defaultImage\" viewBox=\"0 0 20 20\" style=\"display: none;\"><path d=\"M10 18a8 8 0 0 0 7.687-10.224l1.566-1.574A9.97 9.97 0 0 1 20 10c0 5.523-4.477 10-10 10S0 15.523 0 10 4.477 0 10 0a9.967 9.967 0 0 1 6.967 2.826l-1.413 1.416A8 8 0 1 0 10 18Z\"></path><path d=\"M11.978 12.095a.5.5 0 0 1-.695.013l-1.984-1.849-4.138 4.084a6.506 6.506 0 0 1-1.114-1.724l4.84-4.82a.5.5 0 0 1 .694-.011l1.994 1.858 6.855-6.87a.5.5 0 0 1 .704-.004l.714.701a.5.5 0 0 1 .004.71l-7.874 7.912Z\"></path></svg></div></div><div class=\"instrumentListItem__info\" bis_skin_checked=\"1\"><span class=\"instrumentListItem__name\">PTC</span><span class=\"instrumentListItem__priceRow\"><span class=\"tag instrumentListItem__sharesTag\"><svg viewBox=\"0 0 6 6\" class=\"closeTiny instrumentListItem__sharesIcon\"><path d=\"M5.1 0.1L5.9 0.9C6 1 6 1.1 5.9 1.2L4.1 3 5.9 4.8C6 4.9 6 5 5.9 5.1L5.1 5.9C5 6 4.9 6 4.8 5.9L3 4.1 1.2 5.9C1.1 6 1 6 0.9 5.9L0.1 5.1C0 5 0 4.9 0.1 4.8L1.9 3 0.1 1.2C0 1.1 0 1 0.1 0.9L0.9 0.1C1 0 1.1 0 1.2 0.1L3 1.9 4.8 0.1C4.9 0 5 0 5.1 0.1Z\"></path></svg>0.524393</span><span class=\"instrumentListItem__currentPrice\">61.35&nbsp;\u20ac</span><!----></span><!----></div><span class=\"trPerformanceMeter -negative performance instrumentListItem__performance\"><svg class=\"trTrendArrow -xsmall -negative trPerformanceMeter__arrow\" viewBox=\"0 0 16 16\"><path d=\"M6.23784 1.30751C6.99212 -0.0985939 9.00843 -0.0985962 9.76271 1.3075L15.6196 12.2257C16.3343 13.5581 15.3691 15.1711 13.8571 15.1711H2.14341C0.631443 15.1711 -0.333754 13.5581 0.38097 12.2257L6.23784 1.30751Z\"></path></svg><!----><data class=\"performance__relative\" value=\"0.2134094197247337\">21.34&nbsp;%</data></span></div></li><li id=\"US6701002056\"><div class=\"-clickable instrumentListItem\" role=\"button\" tabindex=\"0\" lazy-load=\"true\" bis_skin_checked=\"1\"><div class=\"instrumentListItem__logo\" bis_skin_checked=\"1\"><div class=\"instrumentIcon\" bis_skin_checked=\"1\"><img src=\"https://assets.traderepublic.com/img/logos/US6701002056/v2/light.min.svg\" alt=\"\" class=\"instrumentIcon__image\" style=\"\"><svg class=\"trIconPlaceholderStock trInstrumentPlaceholder -small instrumentIcon__defaultImage\" viewBox=\"0 0 20 20\" style=\"display: none;\"><path d=\"M10 18a8 8 0 0 0 7.687-10.224l1.566-1.574A9.97 9.97 0 0 1 20 10c0 5.523-4.477 10-10 10S0 15.523 0 10 4.477 0 10 0a9.967 9.967 0 0 1 6.967 2.826l-1.413 1.416A8 8 0 1 0 10 18Z\"></path><path d=\"M11.978 12.095a.5.5 0 0 1-.695.013l-1.984-1.849-4.138 4.084a6.506 6.506 0 0 1-1.114-1.724l4.84-4.82a.5.5 0 0 1 .694-.011l1.994 1.858 6.855-6.87a.5.5 0 0 1 .704-.004l.714.701a.5.5 0 0 1 .004.71l-7.874 7.912Z\"></path></svg></div></div><div class=\"instrumentListItem__info\" bis_skin_checked=\"1\"><span class=\"instrumentListItem__name\">Novo Nordisk (ADR)</span><span class=\"instrumentListItem__priceRow\"><span class=\"tag instrumentListItem__sharesTag\"><svg viewBox=\"0 0 6 6\" class=\"closeTiny instrumentListItem__sharesIcon\"><path d=\"M5.1 0.1L5.9 0.9C6 1 6 1.1 5.9 1.2L4.1 3 5.9 4.8C6 4.9 6 5 5.9 5.1L5.1 5.9C5 6 4.9 6 4.8 5.9L3 4.1 1.2 5.9C1.1 6 1 6 0.9 5.9L0.1 5.1C0 5 0 4.9 0.1 4.8L1.9 3 0.1 1.2C0 1.1 0 1 0.1 0.9L0.9 0.1C1 0 1.1 0 1.2 0.1L3 1.9 4.8 0.1C4.9 0 5 0 5.1 0.1Z\"></path></svg>1.660735</span><span class=\"instrumentListItem__currentPrice\">58.23&nbsp;\u20ac</span><!----></span><!----></div><span class=\"trPerformanceMeter -negative performance instrumentListItem__performance\"><svg class=\"trTrendArrow -xsmall -negative trPerformanceMeter__arrow\" viewBox=\"0 0 16 16\"><path d=\"M6.23784 1.30751C6.99212 -0.0985939 9.00843 -0.0985962 9.76271 1.3075L15.6196 12.2257C16.3343 13.5581 15.3691 15.1711 13.8571 15.1711H2.14341C0.631443 15.1711 -0.333754 13.5581 0.38097 12.2257L6.23784 1.30751Z\"></path></svg><!----><data class=\"performance__relative\" value=\"0.17992332540389813\">17.99&nbsp;%</data></span></div></li><li id=\"US4330001060\"><div class=\"-clickable instrumentListItem\" role=\"button\" tabindex=\"0\" lazy-load=\"true\" bis_skin_checked=\"1\"><div class=\"instrumentListItem__logo\" bis_skin_checked=\"1\"><div class=\"instrumentIcon\" bis_skin_checked=\"1\"><img src=\"https://assets.traderepublic.com/img/logos/US4330001060/v2/light.min.svg\" alt=\"\" class=\"instrumentIcon__image\" style=\"\"><svg class=\"trIconPlaceholderStock trInstrumentPlaceholder -small instrumentIcon__defaultImage\" viewBox=\"0 0 20 20\" style=\"display: none;\"><path d=\"M10 18a8 8 0 0 0 7.687-10.224l1.566-1.574A9.97 9.97 0 0 1 20 10c0 5.523-4.477 10-10 10S0 15.523 0 10 4.477 0 10 0a9.967 9.967 0 0 1 6.967 2.826l-1.413 1.416A8 8 0 1 0 10 18Z\"></path><path d=\"M11.978 12.095a.5.5 0 0 1-.695.013l-1.984-1.849-4.138 4.084a6.506 6.506 0 0 1-1.114-1.724l4.84-4.82a.5.5 0 0 1 .694-.011l1.994 1.858 6.855-6.87a.5.5 0 0 1 .704-.004l.714.701a.5.5 0 0 1 .004.71l-7.874 7.912Z\"></path></svg></div></div><div class=\"instrumentListItem__info\" bis_skin_checked=\"1\"><span class=\"instrumentListItem__name\">Hims &amp; Hers Health</span><span class=\"instrumentListItem__priceRow\"><span class=\"tag instrumentListItem__sharesTag\"><svg viewBox=\"0 0 6 6\" class=\"closeTiny instrumentListItem__sharesIcon\"><path d=\"M5.1 0.1L5.9 0.9C6 1 6 1.1 5.9 1.2L4.1 3 5.9 4.8C6 4.9 6 5 5.9 5.1L5.1 5.9C5 6 4.9 6 4.8 5.9L3 4.1 1.2 5.9C1.1 6 1 6 0.9 5.9L0.1 5.1C0 5 0 4.9 0.1 4.8L1.9 3 0.1 1.2C0 1.1 0 1 0.1 0.9L0.9 0.1C1 0 1.1 0 1.2 0.1L3 1.9 4.8 0.1C4.9 0 5 0 5.1 0.1Z\"></path></svg>2.285191</span><span class=\"instrumentListItem__currentPrice\">54.34&nbsp;\u20ac</span><!----></span><!----></div><span class=\"trPerformanceMeter -positive performance instrumentListItem__performance\"><svg class=\"trTrendArrow -xsmall -positive trPerformanceMeter__arrow\" viewBox=\"0 0 16 16\"><path d=\"M6.23784 1.30751C6.99212 -0.0985939 9.00843 -0.0985962 9.76271 1.3075L15.6196 12.2257C16.3343 13.5581 15.3691 15.1711 13.8571 15.1711H2.14341C0.631443 15.1711 -0.333754 13.5581 0.38097 12.2257L6.23784 1.30751Z\"></path></svg><!----><data class=\"performance__relative\" value=\"0.06552675914972939\">6.55&nbsp;%</data></span></div></li><li id=\"US5533681012\"><div class=\"-clickable instrumentListItem\" role=\"button\" tabindex=\"0\" lazy-load=\"true\" bis_skin_checked=\"1\"><div class=\"instrumentListItem__logo\" bis_skin_checked=\"1\"><div class=\"instrumentIcon\" bis_skin_checked=\"1\"><img src=\"https://assets.traderepublic.com/img/logos/US5533681012/v2/light.min.svg\" alt=\"\" class=\"instrumentIcon__image\" style=\"\"><svg class=\"trIconPlaceholderStock trInstrumentPlaceholder -small instrumentIcon__defaultImage\" viewBox=\"0 0 20 20\" style=\"display: none;\"><path d=\"M10 18a8 8 0 0 0 7.687-10.224l1.566-1.574A9.97 9.97 0 0 1 20 10c0 5.523-4.477 10-10 10S0 15.523 0 10 4.477 0 10 0a9.967 9.967 0 0 1 6.967 2.826l-1.413 1.416A8 8 0 1 0 10 18Z\"></path><path d=\"M11.978 12.095a.5.5 0 0 1-.695.013l-1.984-1.849-4.138 4.084a6.506 6.506 0 0 1-1.114-1.724l4.84-4.82a.5.5 0 0 1 .694-.011l1.994 1.858 6.855-6.87a.5.5 0 0 1 .704-.004l.714.701a.5.5 0 0 1 .004.71l-7.874 7.912Z\"></path></svg></div></div><div class=\"instrumentListItem__info\" bis_skin_checked=\"1\"><span class=\"instrumentListItem__name\">MP Materials</span><span class=\"instrumentListItem__priceRow\"><span class=\"tag instrumentListItem__sharesTag\"><svg viewBox=\"0 0 6 6\" class=\"closeTiny instrumentListItem__sharesIcon\"><path d=\"M5.1 0.1L5.9 0.9C6 1 6 1.1 5.9 1.2L4.1 3 5.9 4.8C6 4.9 6 5 5.9 5.1L5.1 5.9C5 6 4.9 6 4.8 5.9L3 4.1 1.2 5.9C1.1 6 1 6 0.9 5.9L0.1 5.1C0 5 0 4.9 0.1 4.8L1.9 3 0.1 1.2C0 1.1 0 1 0.1 0.9L0.9 0.1C1 0 1.1 0 1.2 0.1L3 1.9 4.8 0.1C4.9 0 5 0 5.1 0.1Z\"></path></svg>1.006036</span><span class=\"instrumentListItem__currentPrice\">54.23&nbsp;\u20ac</span><!----></span><!----></div><span class=\"trPerformanceMeter -positive performance instrumentListItem__performance\"><svg class=\"trTrendArrow -xsmall -positive trPerformanceMeter__arrow\" viewBox=\"0 0 16 16\"><path d=\"M6.23784 1.30751C6.99212 -0.0985939 9.00843 -0.0985962 9.76271 1.3075L15.6196 12.2257C16.3343 13.5581 15.3691 15.1711 13.8571 15.1711H2.14341C0.631443 15.1711 -0.333754 13.5581 0.38097 12.2257L6.23784 1.30751Z\"></path></svg><!----><data class=\"performance__relative\" value=\"0.06534371664624253\">6.53&nbsp;%</data></span></div></li><li id=\"US3755581036\"><div class=\"-clickable instrumentListItem\" role=\"button\" tabindex=\"0\" lazy-load=\"true\" bis_skin_checked=\"1\"><div class=\"instrumentListItem__logo\" bis_skin_checked=\"1\"><div class=\"instrumentIcon\" bis_skin_checked=\"1\"><img src=\"https://assets.traderepublic.com/img/logos/US3755581036/v2/light.min.svg\" alt=\"\" class=\"instrumentIcon__image\" style=\"\"><svg class=\"trIconPlaceholderStock trInstrumentPlaceholder -small instrumentIcon__defaultImage\" viewBox=\"0 0 20 20\" style=\"display: none;\"><path d=\"M10 18a8 8 0 0 0 7.687-10.224l1.566-1.574A9.97 9.97 0 0 1 20 10c0 5.523-4.477 10-10 10S0 15.523 0 10 4.477 0 10 0a9.967 9.967 0 0 1 6.967 2.826l-1.413 1.416A8 8 0 1 0 10 18Z\"></path><path d=\"M11.978 12.095a.5.5 0 0 1-.695.013l-1.984-1.849-4.138 4.084a6.506 6.506 0 0 1-1.114-1.724l4.84-4.82a.5.5 0 0 1 .694-.011l1.994 1.858 6.855-6.87a.5.5 0 0 1 .704-.004l.714.701a.5.5 0 0 1 .004.71l-7.874 7.912Z\"></path></svg></div></div><div class=\"instrumentListItem__info\" bis_skin_checked=\"1\"><span class=\"instrumentListItem__name\">Gilead Sciences</span><span class=\"instrumentListItem__priceRow\"><span class=\"tag instrumentListItem__sharesTag\"><svg viewBox=\"0 0 6 6\" class=\"closeTiny instrumentListItem__sharesIcon\"><path d=\"M5.1 0.1L5.9 0.9C6 1 6 1.1 5.9 1.2L4.1 3 5.9 4.8C6 4.9 6 5 5.9 5.1L5.1 5.9C5 6 4.9 6 4.8 5.9L3 4.1 1.2 5.9C1.1 6 1 6 0.9 5.9L0.1 5.1C0 5 0 4.9 0.1 4.8L1.9 3 0.1 1.2C0 1.1 0 1 0.1 0.9L0.9 0.1C1 0 1.1 0 1.2 0.1L3 1.9 4.8 0.1C4.9 0 5 0 5.1 0.1Z\"></path></svg>0.492222</span><span class=\"instrumentListItem__currentPrice\">54.01&nbsp;\u20ac</span><!----></span><!----></div><span class=\"trPerformanceMeter -positive performance instrumentListItem__performance\"><svg class=\"trTrendArrow -xsmall -positive trPerformanceMeter__arrow\" viewBox=\"0 0 16 16\"><path d=\"M6.23784 1.30751C6.99212 -0.0985939 9.00843 -0.0985962 9.76271 1.3075L15.6196 12.2257C16.3343 13.5581 15.3691 15.1711 13.8571 15.1711H2.14341C0.631443 15.1711 -0.333754 13.5581 0.38097 12.2257L6.23784 1.30751Z\"></path></svg><!----><data class=\"performance__relative\" value=\"0.05895478884603649\">5.90&nbsp;%</data></span></div></li><li id=\"US4227041062\"><div class=\"-clickable instrumentListItem\" role=\"button\" tabindex=\"0\" lazy-load=\"true\" bis_skin_checked=\"1\"><div class=\"instrumentListItem__logo\" bis_skin_checked=\"1\"><div class=\"instrumentIcon\" bis_skin_checked=\"1\"><img src=\"https://assets.traderepublic.com/img/logos/US4227041062/v2/light.min.svg\" alt=\"\" class=\"instrumentIcon__image\" style=\"\"><svg class=\"trIconPlaceholderStock trInstrumentPlaceholder -small instrumentIcon__defaultImage\" viewBox=\"0 0 20 20\" style=\"display: none;\"><path d=\"M10 18a8 8 0 0 0 7.687-10.224l1.566-1.574A9.97 9.97 0 0 1 20 10c0 5.523-4.477 10-10 10S0 15.523 0 10 4.477 0 10 0a9.967 9.967 0 0 1 6.967 2.826l-1.413 1.416A8 8 0 1 0 10 18Z\"></path><path d=\"M11.978 12.095a.5.5 0 0 1-.695.013l-1.984-1.849-4.138 4.084a6.506 6.506 0 0 1-1.114-1.724l4.84-4.82a.5.5 0 0 1 .694-.011l1.994 1.858 6.855-6.87a.5.5 0 0 1 .704-.004l.714.701a.5.5 0 0 1 .004.71l-7.874 7.912Z\"></path></svg></div></div><div class=\"instrumentListItem__info\" bis_skin_checked=\"1\"><span class=\"instrumentListItem__name\">Hecla Mining</span><span class=\"instrumentListItem__priceRow\"><span class=\"tag instrumentListItem__sharesTag\"><svg viewBox=\"0 0 6 6\" class=\"closeTiny instrumentListItem__sharesIcon\"><path d=\"M5.1 0.1L5.9 0.9C6 1 6 1.1 5.9 1.2L4.1 3 5.9 4.8C6 4.9 6 5 5.9 5.1L5.1 5.9C5 6 4.9 6 4.8 5.9L3 4.1 1.2 5.9C1.1 6 1 6 0.9 5.9L0.1 5.1C0 5 0 4.9 0.1 4.8L1.9 3 0.1 1.2C0 1.1 0 1 0.1 0.9L0.9 0.1C1 0 1.1 0 1.2 0.1L3 1.9 4.8 0.1C4.9 0 5 0 5.1 0.1Z\"></path></svg>3.376545</span><span class=\"instrumentListItem__currentPrice\">51.05&nbsp;\u20ac</span><!----></span><!----></div><span class=\"trPerformanceMeter -negative performance instrumentListItem__performance\"><svg class=\"trTrendArrow -xsmall -negative trPerformanceMeter__arrow\" viewBox=\"0 0 16 16\"><path d=\"M6.23784 1.30751C6.99212 -0.0985939 9.00843 -0.0985962 9.76271 1.3075L15.6196 12.2257C16.3343 13.5581 15.3691 15.1711 13.8571 15.1711H2.14341C0.631443 15.1711 -0.333754 13.5581 0.38097 12.2257L6.23784 1.30751Z\"></path></svg><!----><data class=\"performance__relative\" value=\"0.10432907613202845\">10.43&nbsp;%</data></span></div></li><li id=\"CA13321L1085\"><div class=\"-clickable instrumentListItem\" role=\"button\" tabindex=\"0\" lazy-load=\"true\" bis_skin_checked=\"1\"><div class=\"instrumentListItem__logo\" bis_skin_checked=\"1\"><div class=\"instrumentIcon\" bis_skin_checked=\"1\"><img src=\"https://assets.traderepublic.com/img/logos/CA13321L1085/v2/light.min.svg\" alt=\"\" class=\"instrumentIcon__image\" style=\"\"><svg class=\"trIconPlaceholderStock trInstrumentPlaceholder -small instrumentIcon__defaultImage\" viewBox=\"0 0 20 20\" style=\"display: none;\"><path d=\"M10 18a8 8 0 0 0 7.687-10.224l1.566-1.574A9.97 9.97 0 0 1 20 10c0 5.523-4.477 10-10 10S0 15.523 0 10 4.477 0 10 0a9.967 9.967 0 0 1 6.967 2.826l-1.413 1.416A8 8 0 1 0 10 18Z\"></path><path d=\"M11.978 12.095a.5.5 0 0 1-.695.013l-1.984-1.849-4.138 4.084a6.506 6.506 0 0 1-1.114-1.724l4.84-4.82a.5.5 0 0 1 .694-.011l1.994 1.858 6.855-6.87a.5.5 0 0 1 .704-.004l.714.701a.5.5 0 0 1 .004.71l-7.874 7.912Z\"></path></svg></div></div><div class=\"instrumentListItem__info\" bis_skin_checked=\"1\"><span class=\"instrumentListItem__name\">Cameco</span><span class=\"instrumentListItem__priceRow\"><span class=\"tag instrumentListItem__sharesTag\"><svg viewBox=\"0 0 6 6\" class=\"closeTiny instrumentListItem__sharesIcon\"><path d=\"M5.1 0.1L5.9 0.9C6 1 6 1.1 5.9 1.2L4.1 3 5.9 4.8C6 4.9 6 5 5.9 5.1L5.1 5.9C5 6 4.9 6 4.8 5.9L3 4.1 1.2 5.9C1.1 6 1 6 0.9 5.9L0.1 5.1C0 5 0 4.9 0.1 4.8L1.9 3 0.1 1.2C0 1.1 0 1 0.1 0.9L0.9 0.1C1 0 1.1 0 1.2 0.1L3 1.9 4.8 0.1C4.9 0 5 0 5.1 0.1Z\"></path></svg>0.497116</span><span class=\"instrumentListItem__currentPrice\">49.74&nbsp;\u20ac</span><!----></span><!----></div><span class=\"trPerformanceMeter -negative performance instrumentListItem__performance\"><svg class=\"trTrendArrow -xsmall -negative trPerformanceMeter__arrow\" viewBox=\"0 0 16 16\"><path d=\"M6.23784 1.30751C6.99212 -0.0985939 9.00843 -0.0985962 9.76271 1.3075L15.6196 12.2257C16.3343 13.5581 15.3691 15.1711 13.8571 15.1711H2.14341C0.631443 15.1711 -0.333754 13.5581 0.38097 12.2257L6.23784 1.30751Z\"></path></svg><!----><data class=\"performance__relative\" value=\"0.024773958101832902\">2.48&nbsp;%</data></span></div></li><li id=\"CA0115321089\"><div class=\"-clickable instrumentListItem\" role=\"button\" tabindex=\"0\" lazy-load=\"true\" bis_skin_checked=\"1\"><div class=\"instrumentListItem__logo\" bis_skin_checked=\"1\"><div class=\"instrumentIcon\" bis_skin_checked=\"1\"><img src=\"https://assets.traderepublic.com/img/logos/CA0115321089/v2/light.min.svg\" alt=\"\" class=\"instrumentIcon__image\" style=\"\"><svg class=\"trIconPlaceholderStock trInstrumentPlaceholder -small instrumentIcon__defaultImage\" viewBox=\"0 0 20 20\" style=\"display: none;\"><path d=\"M10 18a8 8 0 0 0 7.687-10.224l1.566-1.574A9.97 9.97 0 0 1 20 10c0 5.523-4.477 10-10 10S0 15.523 0 10 4.477 0 10 0a9.967 9.967 0 0 1 6.967 2.826l-1.413 1.416A8 8 0 1 0 10 18Z\"></path><path d=\"M11.978 12.095a.5.5 0 0 1-.695.013l-1.984-1.849-4.138 4.084a6.506 6.506 0 0 1-1.114-1.724l4.84-4.82a.5.5 0 0 1 .694-.011l1.994 1.858 6.855-6.87a.5.5 0 0 1 .704-.004l.714.701a.5.5 0 0 1 .004.71l-7.874 7.912Z\"></path></svg></div></div><div class=\"instrumentListItem__info\" bis_skin_checked=\"1\"><span class=\"instrumentListItem__name\">Alamos Gold</span><span class=\"instrumentListItem__priceRow\"><span class=\"tag instrumentListItem__sharesTag\"><svg viewBox=\"0 0 6 6\" class=\"closeTiny instrumentListItem__sharesIcon\"><path d=\"M5.1 0.1L5.9 0.9C6 1 6 1.1 5.9 1.2L4.1 3 5.9 4.8C6 4.9 6 5 5.9 5.1L5.1 5.9C5 6 4.9 6 4.8 5.9L3 4.1 1.2 5.9C1.1 6 1 6 0.9 5.9L0.1 5.1C0 5 0 4.9 0.1 4.8L1.9 3 0.1 1.2C0 1.1 0 1 0.1 0.9L0.9 0.1C1 0 1.1 0 1.2 0.1L3 1.9 4.8 0.1C4.9 0 5 0 5.1 0.1Z\"></path></svg>1.103509</span><span class=\"instrumentListItem__currentPrice\">38.44&nbsp;\u20ac</span><!----></span><!----></div><span class=\"trPerformanceMeter -negative performance instrumentListItem__performance\"><svg class=\"trTrendArrow -xsmall -negative trPerformanceMeter__arrow\" viewBox=\"0 0 16 16\"><path d=\"M6.23784 1.30751C6.99212 -0.0985939 9.00843 -0.0985962 9.76271 1.3075L15.6196 12.2257C16.3343 13.5581 15.3691 15.1711 13.8571 15.1711H2.14341C0.631443 15.1711 -0.333754 13.5581 0.38097 12.2257L6.23784 1.30751Z\"></path></svg><!----><data class=\"performance__relative\" value=\"0.24669414874059714\">24.67&nbsp;%</data></span></div></li><li id=\"US81762P1021\"><div class=\"-clickable instrumentListItem\" role=\"button\" tabindex=\"0\" lazy-load=\"true\" bis_skin_checked=\"1\"><div class=\"instrumentListItem__logo\" bis_skin_checked=\"1\"><div class=\"instrumentIcon\" bis_skin_checked=\"1\"><img src=\"https://assets.traderepublic.com/img/logos/US81762P1021/v2/light.min.svg\" alt=\"\" class=\"instrumentIcon__image\" style=\"\"><svg class=\"trIconPlaceholderStock trInstrumentPlaceholder -small instrumentIcon__defaultImage\" viewBox=\"0 0 20 20\" style=\"display: none;\"><path d=\"M10 18a8 8 0 0 0 7.687-10.224l1.566-1.574A9.97 9.97 0 0 1 20 10c0 5.523-4.477 10-10 10S0 15.523 0 10 4.477 0 10 0a9.967 9.967 0 0 1 6.967 2.826l-1.413 1.416A8 8 0 1 0 10 18Z\"></path><path d=\"M11.978 12.095a.5.5 0 0 1-.695.013l-1.984-1.849-4.138 4.084a6.506 6.506 0 0 1-1.114-1.724l4.84-4.82a.5.5 0 0 1 .694-.011l1.994 1.858 6.855-6.87a.5.5 0 0 1 .704-.004l.714.701a.5.5 0 0 1 .004.71l-7.874 7.912Z\"></path></svg></div></div><div class=\"instrumentListItem__info\" bis_skin_checked=\"1\"><span class=\"instrumentListItem__name\">ServiceNow</span><span class=\"instrumentListItem__priceRow\"><span class=\"tag instrumentListItem__sharesTag\"><svg viewBox=\"0 0 6 6\" class=\"closeTiny instrumentListItem__sharesIcon\"><path d=\"M5.1 0.1L5.9 0.9C6 1 6 1.1 5.9 1.2L4.1 3 5.9 4.8C6 4.9 6 5 5.9 5.1L5.1 5.9C5 6 4.9 6 4.8 5.9L3 4.1 1.2 5.9C1.1 6 1 6 0.9 5.9L0.1 5.1C0 5 0 4.9 0.1 4.8L1.9 3 0.1 1.2C0 1.1 0 1 0.1 0.9L0.9 0.1C1 0 1.1 0 1.2 0.1L3 1.9 4.8 0.1C4.9 0 5 0 5.1 0.1Z\"></path></svg>0.428593</span><span class=\"instrumentListItem__currentPrice\">33.09&nbsp;\u20ac</span><!----></span><!----></div><span class=\"trPerformanceMeter -negative performance instrumentListItem__performance\"><svg class=\"trTrendArrow -xsmall -negative trPerformanceMeter__arrow\" viewBox=\"0 0 16 16\"><path d=\"M6.23784 1.30751C6.99212 -0.0985939 9.00843 -0.0985962 9.76271 1.3075L15.6196 12.2257C16.3343 13.5581 15.3691 15.1711 13.8571 15.1711H2.14341C0.631443 15.1711 -0.333754 13.5581 0.38097 12.2257L6.23784 1.30751Z\"></path></svg><!----><data class=\"performance__relative\" value=\"0.4195191934625229\">41.95&nbsp;%</data></span></div></li></ul></section>";
+    htmlInput.value = defaultHTML;
+    parseHTML();
+  })();
+</script>
+</body>
+</html>
