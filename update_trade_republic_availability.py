@@ -155,6 +155,35 @@ def wait_for_manual_login(page) -> None:
     input()
 
 
+def wait_for_stable_results(page, timeout_ms: int = 15000, stable_ms: int = 800) -> str:
+    page.wait_for_function(
+        r"""() =>
+            (
+                document.body.innerText.includes("All Products for") &&
+                /\d+\s+results?\s+found/i.test(document.body.innerText)
+            ) ||
+            document.body.innerText.includes("We couldn't find")
+        """,
+        timeout=timeout_ms,
+    )
+
+    deadline = time.monotonic() + timeout_ms / 1000
+    last_text = ""
+    stable_since = time.monotonic()
+
+    while time.monotonic() < deadline:
+        current_text = page.locator("body").inner_text(timeout=5000)
+        if current_text == last_text:
+            if (time.monotonic() - stable_since) * 1000 >= stable_ms:
+                return current_text
+        else:
+            last_text = current_text
+            stable_since = time.monotonic()
+        time.sleep(0.2)
+
+    return page.locator("body").inner_text(timeout=5000)
+
+
 def lookup_company(
     page,
     company_name: str,
@@ -162,6 +191,7 @@ def lookup_company(
     threshold: int,
     delay: float,
     settle_ms: int,
+    stable_ms: int,
     debug_dir: Path | None = None,
     row_number: int | None = None,
 ) -> tuple[bool, SearchResult | None, str, int]:
@@ -174,20 +204,9 @@ def lookup_company(
         if settle_ms:
             page.wait_for_timeout(settle_ms)
         try:
-            page.wait_for_function(
-                r"""() =>
-                    (
-                        document.body.innerText.includes("All Products for") &&
-                        /\d+\s+results?\s+found/i.test(document.body.innerText)
-                    ) ||
-                    document.body.innerText.includes("We couldn't find")
-                """,
-                timeout=15000,
-            )
+            body = wait_for_stable_results(page, timeout_ms=15000, stable_ms=stable_ms)
         except PlaywrightTimeoutError:
-            pass
-
-        body = page.locator("body").inner_text(timeout=5000)
+            body = page.locator("body").inner_text(timeout=5000)
         count_match = RESULT_COUNT_RE.search(body)
         result_count = int(count_match.group(1)) if count_match else 0
         if result_count > best_count:
@@ -228,7 +247,8 @@ def main() -> int:
     parser.add_argument("--profile-dir", default=DEFAULT_PROFILE_DIR)
     parser.add_argument("--threshold", type=int, default=82)
     parser.add_argument("--delay", type=float, default=0.25)
-    parser.add_argument("--settle-ms", type=int, default=1500, help="Extra wait after each Trade Republic page load.")
+    parser.add_argument("--settle-ms", type=int, default=0, help="Optional extra wait after each Trade Republic page load.")
+    parser.add_argument("--stable-ms", type=int, default=800, help="How long result page text must stay unchanged before parsing.")
     parser.add_argument("--debug-dir", default="", help="Optional directory for page text dumps when no results are parsed.")
     parser.add_argument("--headless", action="store_true")
     parser.add_argument("--login", action="store_true", help="Open the persistent browser profile and wait for manual login.")
@@ -303,6 +323,7 @@ def main() -> int:
                     args.threshold,
                     args.delay,
                     args.settle_ms,
+                    args.stable_ms,
                     debug_dir,
                     row_number,
                 )
