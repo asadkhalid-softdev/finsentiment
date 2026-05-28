@@ -90,8 +90,11 @@ jobs:
     - name: List files after sentiment analysis
       run: ls -lah # Verify the excel file was potentially modified
 
-    - name: Upload final Stocks.xlsx
+    - name: Upload final stock analysis files
       uses: actions/upload-artifact@v4
       with:
-        name: Final-Stocks  # Different name for the final artifact
-        path: stocks.xlsx   # Path to the final file
+        name: Final-Stock-Analysis
+        path: |
+          stocks.xlsx
+          stocks_metrics.xlsx
+        if-no-files-found: error

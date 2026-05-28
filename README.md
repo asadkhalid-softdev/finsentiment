@@ -73,7 +73,7 @@ pip install -r requirements.txt
 python stock_sentiment.py
 ```
 
-3. Results will be saved in the same Excel file with updated sentiment scores and investment allocation.
+3. Results will be saved to `stocks_metrics.xlsx` with sentiment scores and investment allocation.
 
 ### Updating Stock List
 
