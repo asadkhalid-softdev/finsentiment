@@ -78,3 +78,6 @@ stock_names.xlsx
 .~lock.stocks.xlsx#
 *.backup-before-tr*
 /outputs
+
+.codex_tmp
+output
