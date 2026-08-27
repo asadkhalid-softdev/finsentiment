@@ -9,4 +9,4 @@ Goal: Long term (5 to 10 Years) DCA.For research, you can decide whether you sho
 
 Make sure your answer gives weight to metrics for the latest quarters besides working on the significant technologies.
 
-If we put together the scores provided to you in stocks_metrics.xlsx, current market sentiments surrounding different major domains, that are to lead the future and keeping in mind core technologies that would facilitate this, what top 20 stocks should I DCA in today. I only need to know the ones I should put my dca money in today.
+If we put together the final scores provided to you in stocks_metrics.xlsx, current market sentiments surrounding different major domains, that are to lead the future and keeping in mind core technologies that would facilitate this, what top 20 stocks should I DCA in today. I only need to know the ones I should put my dca money in today.
